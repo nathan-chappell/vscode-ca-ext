@@ -2,6 +2,45 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
 
+let panel: vscode.WebviewPanel | null = null;
+
+interface Neighborhood {
+	n: number
+	ne: number
+	e: number
+	se: number
+	s: number
+	sw: number
+	w: number
+	nw: number
+	c: number
+}
+
+interface Features {
+	top: number
+	right: number
+	bottom: number
+	left: number
+	X: number
+	O: number
+	corners: number
+	cardinals: number
+	sum: number
+}
+
+interface Globals {
+	t: number
+	i: number
+	j: number
+	t_150: number
+	parity: 1 | 0
+	r: number
+	quadrant: 0 | 1 | 2 | 3
+	x: number
+	y: number
+}
+
+
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -10,17 +49,65 @@ export function activate(context: vscode.ExtensionContext) {
 	const domainWorkerUri = vscode.Uri.joinPath(context.extensionUri, 'src', 'domain.js');
 	const drawingWorkerUri = vscode.Uri.joinPath(context.extensionUri, 'src', 'drawing.js');
 	const gridStylerWorkerUri = vscode.Uri.joinPath(context.extensionUri, 'src', 'gridStyler.js');
+	const commonUri = vscode.Uri.joinPath(context.extensionUri, 'src', 'common.js');
 
-	const getHtmlFromPanel = (panel: vscode.WebviewPanel) => `<!DOCTYPE html>
+	const defaultCaDeclarations = {
+		parameters: {
+			p: { min: 0, max: 1, step: .01, value: .23 },
+			'quadrant-modulater': { min: 1, max: 4, value: 2, step: 1 }
+		},
+
+		initFunc: (
+			{ t, i, j, t_150, parity, quadrant, x, y, r }: Globals,
+			parameters: any,
+		) => {
+			if (parity) {
+				return Math.random() < parameters.p ? quadrant % parameters['quadrant-modulater'] : 0
+			} else {
+				return Math.random() < Math.pow(parameters.p, i / 50) ? 1 : 0
+			}
+		},
+
+		updateFunc: (
+			{ n, ne, e, se, s, sw, w, nw, c }: Neighborhood,
+			{ top, right, bottom, left, X, O, sum, corners, cardinals }: Features,
+			{ t, i, j, t_150, r, quadrant, x, y }: Globals,
+			paramters: any,
+		) => {
+			if (c == 1 && sum < 2) {
+				return (0 + quadrant) % paramters['quadrant-modulator']
+			} else if (c == 1 && 2 <= sum && sum <= 3) {
+				return (1 + quadrant) % paramters['quadrant-modulator']
+			} else if (c == 1 && 4 <= sum) {
+				return (0 + quadrant) % paramters['quadrant-modulator']
+			} else if (c == 0 && sum == 3) {
+				return (1 + quadrant) % paramters['quadrant-modulator']
+			} else {
+				return (0 + quadrant) % paramters['quadrant-modulator']
+			}
+		}
+	}
+
+	const defaultCaDeclarationsText = `
+	let parameters = ${JSON.stringify(defaultCaDeclarations.parameters)};
+	let initFunc = ${defaultCaDeclarations.initFunc.toString()};
+	let updateFunc = ${defaultCaDeclarations.updateFunc.toString()};
+	`;
+
+	const getHtml = (panel: vscode.WebviewPanel, caDeclarations: string) => `<!DOCTYPE html>
 	<html>
 	<head>
 		<meta charset="UTF-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0">
 		<title>Cellular Automata</title>
 		<script>
-		var domainWorkerUri = "${panel.webview.asWebviewUri(domainWorkerUri)}"
-		var drawingWorkerUri = "${panel.webview.asWebviewUri(drawingWorkerUri)}"
-		var gridStylerWorkerUri = "${panel.webview.asWebviewUri(gridStylerWorkerUri)}"
+		var uris = {
+			domainWorkerUri : "${panel.webview.asWebviewUri(domainWorkerUri)}",
+			drawingWorkerUri : "${panel.webview.asWebviewUri(drawingWorkerUri)}",
+			gridStylerWorkerUri : "${panel.webview.asWebviewUri(gridStylerWorkerUri)}",
+			commonUri : "${panel.webview.asWebviewUri(commonUri)}",
+		}
+		${caDeclarations}
 		</script>
 		<script src="${panel.webview.asWebviewUri(mainScriptUri)}" defer></script>
 	</head>
@@ -33,23 +120,40 @@ export function activate(context: vscode.ExtensionContext) {
 	// Get path to resource on disk
 
 	// https://code.visualstudio.com/api/extension-guides/webview#webviews-api-basics
-	context.subscriptions.push(
-		vscode.commands.registerCommand('cellularautomata-js.run', async () => {
+	context.subscriptions.push((() => {
+		const commandDisposer: vscode.Disposable = vscode.commands.registerCommand('cellularautomata-js.run', async () => {
 			// Create and show a new webview
-			const panel = vscode.window.createWebviewPanel(
+			panel = vscode.window.createWebviewPanel(
 				'cellularAutomata', // Identifies the type of the webview. Used internally
 				'Cellular Automata', // Title of the panel displayed to the user
 				vscode.ViewColumn.One, // Editor column to show the new webview panel in.
 				{} // Webview options. More on these later.
 			);
 
-			panel.webview.html = getHtmlFromPanel(panel);
-		})
-	);
+			const currentFileText = vscode.window.activeTextEditor?.document.getText()
+			vscode.workspace.onDidSaveTextDocument(e => {
+				if (e.fileName.endsWith('.ca.js')) {
+					const caDeclarationsText = e.getText();
+					if (panel !== null) {
+						panel.webview.html = getHtml(panel, caDeclarationsText)
+					}
+				}
+			})
+			panel.webview.html = getHtml(panel, defaultCaDeclarationsText);
+		});
+
+		return {
+			dispose() {
+				commandDisposer.dispose();
+				panel = null;
+			}
+		}
+	})());
 
 	// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-view-sample/src/extension.ts
+	const provider = new ParametersViewProvider(context.extensionUri);
 	context.subscriptions.push(
-		vscode.window.registerWebviewViewProvider(ColorsViewProvider.viewType, provider));
+		vscode.window.registerWebviewViewProvider(ParametersViewProvider.viewType, provider));
 
 	// #endregion
 
@@ -68,7 +172,7 @@ export function activate(context: vscode.ExtensionContext) {
 // This method is called when your extension is deactivated
 export function deactivate() { }
 
-class ColorsViewProvider implements vscode.WebviewViewProvider {
+class ParametersViewProvider implements vscode.WebviewViewProvider {
 
 	public static readonly viewType = 'calicoColors.colorsView';
 
@@ -107,63 +211,20 @@ class ColorsViewProvider implements vscode.WebviewViewProvider {
 		});
 	}
 
-
-	public clearColors() {
-		if (this._view) {
-			this._view.webview.postMessage({ type: 'clearColors' });
-		}
-	}
-
 	private _getHtmlForWebview(webview: vscode.Webview) {
 		// Get the local path to main script run in the webview, then convert it to a uri we can use in the webview.
-		const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'main.js'));
-
-		// Do the same for the stylesheet.
-		const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'reset.css'));
-		const styleVSCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'vscode.css'));
-		const styleMainUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'main.css'));
-
-		// Use a nonce to only allow a specific script to be run.
-		const nonce = getNonce();
-
+		const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'src', 'parameterMain.js'));
 		return `<!DOCTYPE html>
 			<html lang="en">
 			<head>
 				<meta charset="UTF-8">
-
-				<!--
-					Use a content security policy to only allow loading styles from our extension directory,
-					and only allow scripts that have a specific nonce.
-					(See the 'webview-sample' extension sample for img-src content security policy examples)
-				-->
-				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
-
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-				<link href="${styleResetUri}" rel="stylesheet">
-				<link href="${styleVSCodeUri}" rel="stylesheet">
-				<link href="${styleMainUri}" rel="stylesheet">
-
-				<title>Cat Colors</title>
+				<title>CA Parameters</title>
 			</head>
 			<body>
-				<ul class="color-list">
-				</ul>
-
-				<button class="add-color-button">Add Color</button>
-
-				<script nonce="${nonce}" src="${scriptUri}"></script>
+				<div id="paramters"></div>
+				<script src="${scriptUri}"></script>
 			</body>
 			</html>`;
 	}
 }
-
-function getNonce() {
-	let text = '';
-	const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-	for (let i = 0; i < 32; i++) {
-		text += possible.charAt(Math.floor(Math.random() * possible.length));
-	}
-	return text;
-}
-
