@@ -11,21 +11,23 @@ const lowWaterMark = 100
 const delay = t => new Promise(res => setTimeout(res, t))
 
 onmessage = e => {
-    // console.log('drawing message', e.data);
-    if (e.data.type == 'flush') {
+    // console.log('drawing got message', e.data)
+    const message = 'messageType' in e ? e : e.data
+
+    if (message.messageType == 'flush') {
         styleGrids = []
         return
-    } else if (e.data.type == 'set-canvas') {
-        offscreen = e.data.canvas
+    } else if (message.messageType == 'set-canvas') {
+        offscreen = message.canvas
         ctx = offscreen.getContext('2d')
-    } else if (e.data.type == 'style-grid') {
-        styleGrids.push(e.data.value)
+    } else if (message.messageType == 'style-grid') {
+        styleGrids.push(message.data)
         if (styleGrids.length > highWaterMark) {
-            postMessage({ type: 'high-water-mark' })
+            postMessage({ messageType: 'high-water-mark' })
         }
     }
-    if ('parameters' in e.data) {
-        parameters = { ...parameters, ...e.data.parameters }
+    if ('parameters' in message) {
+        parameters = { ...parameters, ...message.parameters }
     }
 }
 
@@ -39,9 +41,9 @@ async function* gridStream() {
         await delay(Math.max(0, parameters.rate - (Date.now() - start)))
         yield styleGrids.shift()
         if (styleGrids.length == 0) {
-            postMessage({ type: 'empty' })
+            postMessage({ messageType: 'empty' })
         } else if (styleGrids.length < lowWaterMark) {
-            postMessage({ type: 'low-water-mark' })
+            postMessage({ messageType: 'low-water-mark' })
         }
     }
 }
@@ -50,6 +52,7 @@ const drawGrid = (grid) => {
     if (!grid) {
         return
     }
+    // console.log('drawing grid')
     const n = grid.length
     const cw = offscreen.width / n
     const ch = offscreen.height / n
@@ -57,7 +60,7 @@ const drawGrid = (grid) => {
     for (let i = 0; i < n; ++i) {
         for (let j = 0; j < n; ++j) {
             ctx.fillStyle = grid[i][j]
-            ctx.fillRect(cw * i, ch * j, cw, ch)
+            ctx.fillRect(ch * j, cw * i, cw, ch)
         }
     }
 };

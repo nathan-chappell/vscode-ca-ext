@@ -1,5 +1,6 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
+import { timingSafeEqual } from 'crypto';
 import * as vscode from 'vscode';
 
 let webviewPanel: vscode.WebviewPanel | null = null;
@@ -10,7 +11,9 @@ class WebviewManager implements vscode.WebviewViewProvider {
 	extensionUri: vscode.Uri | null = null;
 	webviewView: vscode.WebviewView | null = null;
 
-	constructor() { }
+	domainWorkerSrc: string | null = null;
+	drawingWorkerSrc: string | null = null;
+	gridStylerWorkerSrc: string | null = null;
 
 	resolveWebviewView(
 		webviewView: vscode.WebviewView,
@@ -25,7 +28,7 @@ class WebviewManager implements vscode.WebviewViewProvider {
 			enableScripts: true,
 		};
 
-		const scriptUri = this.webviewView.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'src', 'parameterMain.js'));
+		const scriptUri = this.webviewView.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'src', 'parametersMain.js'));
 		this.webviewView.webview.html = `<!DOCTYPE html>
 			<html lang="en">
 			<head>
@@ -48,7 +51,7 @@ class WebviewManager implements vscode.WebviewViewProvider {
 		}
 	}
 
-	initializeWebviewPanelFromContext(context: vscode.ExtensionContext) {
+	async initializeWebviewPanelFromContext(context: vscode.ExtensionContext): Promise<void> {
 		this.webviewPanel = vscode.window.createWebviewPanel(
 			'cellularAutomata',
 			'Cellular Automata',
@@ -58,6 +61,10 @@ class WebviewManager implements vscode.WebviewViewProvider {
 			}
 		);
 		this.extensionUri = context.extensionUri;
+		this.domainWorkerSrc = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(this.extensionUri, 'src', 'domain.js')));
+		this.drawingWorkerSrc = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(this.extensionUri, 'src', 'drawing.js')));
+		this.gridStylerWorkerSrc = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(this.extensionUri, 'src', 'grid-styler.js')));
+
 		this.updateWebviewPanelHtml();
 		const disposeWebviewPanel = () => { this.webviewPanel = null; };
 		context.subscriptions.push({ dispose() { disposeWebviewPanel(); } });
@@ -85,12 +92,18 @@ class WebviewManager implements vscode.WebviewViewProvider {
 			<meta name="viewport" content="width=device-width, initial-scale=1.0">
 			<title>Cellular Automata</title>
 			<script>
-			var uris = {
-				domainWorkerUri : "${this.webviewPanel.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'src', 'domain.js'))}",
-				drawingWorkerUri : "${this.webviewPanel.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'src', 'drawing.js'))}",
-				gridStylerWorkerUri : "${this.webviewPanel.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'src', 'grid-styler.js'))}",
-				commonUri : "${this.webviewPanel.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'src', 'common.js'))}",
-			}
+			var domainWorkerSrcBase64Blob = new Blob([atob('${btoa(this.domainWorkerSrc!)}')], { messageType: 'application/javascript' });
+			var domainWorkerSrcURL = URL.createObjectURL(domainWorkerSrcBase64Blob)
+			var domainWorker = new Worker(domainWorkerSrcURL);
+
+			var drawingWorkerSrcBase64Blob = new Blob([atob('${btoa(this.drawingWorkerSrc!)}')], { messageType: 'application/javascript' });
+			var drawingWorkerSrcURL = URL.createObjectURL(drawingWorkerSrcBase64Blob)
+			var drawingWorker = new Worker(drawingWorkerSrcURL);
+
+			var gridStylerWorkerSrcBase64Blob = new Blob([atob('${btoa(this.gridStylerWorkerSrc!)}')], { messageType: 'application/javascript' });
+			var gridStylerWorkerSrcURL = URL.createObjectURL(gridStylerWorkerSrcBase64Blob)
+			var gridStylerWorker = new Worker(gridStylerWorkerSrcURL);
+
 			${caDeclarationsText}
 			</script>
 			<script src="${this.webviewPanel.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'src', 'main.js'))}" defer></script>
@@ -128,16 +141,16 @@ interface Features {
 	sum: number;
 }
 
-interface Globals {
+interface SpaceTimeInfo {
 	t: number;
-	i: number;
-	j: number;
 	t_150: number;
-	parity: 1 | 0;
 	r: number;
 	quadrant: 0 | 1 | 2 | 3;
 	x: number;
 	y: number;
+	i: number;
+	j: number;
+	parity: 1 | 0;
 }
 
 
@@ -148,51 +161,69 @@ const defaultCaDeclarations = {
 	},
 
 	initFunc: (
-		{ t, i, j, t_150, parity, quadrant, x, y, r }: Globals,
+		g: SpaceTimeInfo,
 		parameters: any,
 	) => {
-		if (parity) {
-			return Math.random() < parameters.p ? quadrant % parameters['quadrant-modulater'] : 0;
-		} else {
-			return Math.random() < Math.pow(parameters.p, i / 50) ? 1 : 0;
-		}
+		console.log(g);
+		return Math.random() < .32 ? (g.quadrant % 2) : (g.quadrant + 1) % 2;
+		// if ((i + j) % 2 == 0) { return Math.random() < .5 ? 0 : 1; }
+		// return 0;
+		// if (parity) {
+		// 	return Math.random() < parameters.p ? quadrant % parameters['quadrant-modulater'] : 0;
+		// } else {
+		// 	return Math.random() < Math.pow(parameters.p, i / 50) ? 1 : 0;
+		// }
 	},
 
 	updateFunc: (
 		{ n, ne, e, se, s, sw, w, nw, c }: Neighborhood,
 		{ top, right, bottom, left, X, O, sum, corners, cardinals }: Features,
-		{ t, i, j, t_150, r, quadrant, x, y }: Globals,
+		{ t, i, j, t_150, r, quadrant, x, y }: SpaceTimeInfo,
 		paramters: any,
 	) => {
-		if (c == 1 && sum < 2) {
-			return (0 + quadrant) % paramters['quadrant-modulator'];
-		} else if (c == 1 && 2 <= sum && sum <= 3) {
-			return (1 + quadrant) % paramters['quadrant-modulator'];
+		if (r < 20 * (1 + t_150 / 150)) { return (quadrant + 1) % 2; }
+		if (t_150 == 0 && quadrant === 1) { return Math.random() < .5 ** (r / 50); }
+		if (t_150 == 0 && quadrant == 2 && (i + j) < 230) { return Math.random() < .5; }
+		// if (t_150 == 0 && quadrant === 0 && (i < 40 && j > 110)) { return (Math.random() < .3 ? 1 : 0); }
+		if (((t % 30) == 0) && ((Math.abs(i - j) < 5) || (Math.abs((150 - i) - j) < 2 + quadrant))) { return c ? 0 : 1; }
+		// if ((t_150 == 0 || t_150 == 75) && ((Math.abs(i - j) < 2) || (150 - Math.abs(i - j) < 2))) { return c ? 0 : 1; }
+
+		const _q = quadrant === 3 ? 0 : quadrant;
+
+		if (c == 1 && sum < 2 + (_q % 2)) {
+			return (0 + _q) % 2;
+		} else if (c == 1 && 2 <= sum && sum <= (3 + _q)) {
+			return (1 + _q) % 2;
 		} else if (c == 1 && 4 <= sum) {
-			return (0 + quadrant) % paramters['quadrant-modulator'];
+			return (0 + _q) % 2;
 		} else if (c == 0 && sum == 3) {
-			return (1 + quadrant) % paramters['quadrant-modulator'];
+			// return (1 + _q) % 2;
+			return 1;
 		} else {
-			return (0 + quadrant) % paramters['quadrant-modulator'];
+			return 0;
 		}
 	}
 };
 
 const defaultCaDeclarationsText = `
-let parameters = ${JSON.stringify(defaultCaDeclarations.parameters)};
-let initFunc = ${defaultCaDeclarations.initFunc.toString()};
-let updateFunc = ${defaultCaDeclarations.updateFunc.toString()};
+var parameters = ${JSON.stringify(defaultCaDeclarations.parameters)};
+var initFunc = ${defaultCaDeclarations.initFunc.toString()};
+var updateFunc = ${defaultCaDeclarations.updateFunc.toString()};
 `;
 
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
-export function activate(context: vscode.ExtensionContext) {
-	webviewManager.initializeWebviewPanelFromContext(context);
-	const commandDisposer: vscode.Disposable = vscode.commands.registerCommand('cellularautomata-js.run', async () => {
-		const currentFileText = vscode.window.activeTextEditor?.document.getText();
-		webviewManager.updateWebviewPanelHtml(currentFileText);
-	});
+export async function activate(context: vscode.ExtensionContext) {
+	context.subscriptions.push(vscode.commands.registerCommand(
+		'cellularautomata-js.run',
+		() => {
+			console.log('run');
+			// const currentFileText = vscode.window.activeTextEditor?.document.getText();
+			// webviewManager.updateWebviewPanelHtml(currentFileText);
+		})
+	);
+
 	// context.subscriptions.push(
 	// 	vscode.workspace.onDidSaveTextDocument(e => {
 	// 		if (e.fileName.endsWith('.ca.js')) {
@@ -202,8 +233,8 @@ export function activate(context: vscode.ExtensionContext) {
 	// 	})
 	// );
 	// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-view-sample/src/extension.ts
-	const provider = new ParametersViewProvider(context.extensionUri);
-	context.subscriptions.push(vscode.window.registerWebviewViewProvider('cellularautomata-js.params', provider));
+	context.subscriptions.push(vscode.window.registerWebviewViewProvider('cellularautomata-js.params', webviewManager));
+	await webviewManager.initializeWebviewPanelFromContext(context);
 
 	// console.log('Congratulations, your extension "cellularautomata-js" is now active!');
 	// context.subscriptions.push(vscode.commands.registerCommand('cellularautomata-js.helloWorld', () => {
@@ -213,46 +244,3 @@ export function activate(context: vscode.ExtensionContext) {
 
 // This method is called when your extension is deactivated
 export function deactivate() { }
-
-class ParametersViewProvider implements vscode.WebviewViewProvider {
-
-	private _view?: vscode.WebviewView;
-
-	constructor(
-		private readonly _extensionUri: vscode.Uri,
-	) { }
-
-	public resolveWebviewView(
-		webviewView: vscode.WebviewView,
-		context: vscode.WebviewViewResolveContext,
-		_token: vscode.CancellationToken,
-	) {
-		this._view = webviewView;
-
-		webviewView.webview.options = {
-			// Allow scripts in the webview
-			enableScripts: true,
-
-			localResourceRoots: [
-				this._extensionUri
-			]
-		};
-
-		webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
-
-		webviewView.webview.onDidReceiveMessage(data => {
-			switch (data.type) {
-				case 'colorSelected':
-					{
-						vscode.window.activeTextEditor?.insertSnippet(new vscode.SnippetString(`#${data.value}`));
-						break;
-					}
-			}
-		});
-	}
-
-	private _getHtmlForWebview(webview: vscode.Webview) {
-		// Get the local path to main script run in the webview, then convert it to a uri we can use in the webview.
-
-	}
-}

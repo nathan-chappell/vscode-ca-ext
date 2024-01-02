@@ -1,5 +1,5 @@
 let parameters = {
-    domain: { type: 'WrapSquareDomain', size: 150 },
+    domain: { messageType: 'WrapSquareDomain', size: 150 },
     initFunc: { p: .5, a: 0, b: 0 },
     updateFunc: { a_: 0, b_: 0, c_: 0, r1: .1, r2: .01 },
 }
@@ -23,12 +23,14 @@ class WrapSquareDomain {
         this.grid = makeZeroSquare(this.size)
         for (let i = 0; i < this.size; ++i) {
             for (let j = 0; j < this.size; ++j) {
-                this.grid[i][j] = initFunc(i, j, params)
+                const spacetimeInfo = this.getSpaceTimeInfo(i, j)
+                this.grid[i][j] = initFunc(spacetimeInfo, params)
             }
         }
     }
 
     getNeighborhood(i, j) {
+        // console.log('getNeighborhood', i, j, this)
         const grid = this.grid
         const rows = grid.length
         const columns = grid[0].length
@@ -37,43 +39,75 @@ class WrapSquareDomain {
         const d = (i + 1) % rows
         const l = (j - 1 + columns) % columns
         const r = (j + 1) % columns
-        // const uu = (i - 2 + rows) % rows;
-        // const dd = (i + 2) % rows;
-        // const ll = (j - 2 + columns) % columns;
-        // const rr = (j + 2) % columns;
 
-        const c = grid[i][j]
-        const n = grid[u][j]
-        const ne = grid[u][r]
-        const e = grid[i][r]
-        const se = grid[d][r]
-        const s = grid[d][j]
-        const sw = grid[d][l]
-        const w = grid[i][l]
-        const nw = grid[u][l]
-
-        const Top = nw + n + ne
-        const Right = ne + e + se
-        const Bottom = sw + s + se
-        const Left = sw + w + nw
-        const Diag1 = nw + c + se
-        const Diag2 = ne + c + sw
-        const H = w + c + e
-        const V = n + c + s
-        const Sum = Left + V + Right
-
-        return { c, n, ne, e, se, s, sw, w, nw, Top, Right, Bottom, Left, Diag1, Diag2, H, V, Sum }
+        return {
+            c: grid[i][j],
+            n: grid[u][j],
+            ne: grid[u][r],
+            e: grid[i][r],
+            se: grid[d][r],
+            s: grid[d][j],
+            sw: grid[d][l],
+            w: grid[i][l],
+            nw: grid[u][l],
+        }
     }
 
-    update(updateFunc, { r1, r2, ...params }) {
+    getFeaturesAndNeighborhood(i, j) {
+        const N = this.getNeighborhood(i, j)
+        const { c, n, ne, e, se, s, sw, w, nw, } = N
+        const grid = this.grid
+        const rows = grid.length
+        const columns = grid[0].length
+
+        const u = (i - 1 + rows) % rows
+        const d = (i + 1) % rows
+        const l = (j - 1 + columns) % columns
+        const r = (j + 1) % columns
+
+        return {
+            neighborhood: N,
+            features: {
+                top: nw + n + ne,
+                right: ne + e + se,
+                bottom: sw + s + se,
+                left: nw + w + sw,
+                X: c + nw + ne + se + sw,
+                O: n + ne + e + se + s + sw + w + nw,
+                corners: nw + ne + se + sw,
+                cardinals: n + e + s + w,
+                sum: c + n + ne + e + se + s + sw + w + nw,
+            }
+        }
+    }
+
+    getSpaceTimeInfo(i, j) {
+        return {
+            t: this.t,
+            t_150: this.t % 150,
+            i,
+            j,
+            parity: (i + j) % 2,
+            quadrant: 2 * (i > this.size / 2) + (j < this.size / 2),
+            x: i - this.size / 2,
+            y: j - this.size / 2,
+            r: Math.floor(Math.hypot(i - this.size / 2, j - this.size / 2)),
+        }
+
+    }
+
+    update(updateFunc, params) {
         const result = makeZeroSquare(this.size)
-        const t = this.t
-        const o1 = Math.sin(t / (10 * r1))
-        const o2 = Math.sin(t * r2 / 100)
         for (let i = 0; i < this.size; ++i) {
             for (let j = 0; j < this.size; ++j) {
-                const neighborhood = this.getNeighborhood(i, j)
-                result[i][j] = updateFunc(neighborhood, { t, o1, o2, i, j }, params)
+                const { neighborhood, features } = this.getFeaturesAndNeighborhood(i, j)
+                const spacetimeInfo = this.getSpaceTimeInfo(i, j)
+                result[i][j] = updateFunc(
+                    neighborhood,
+                    features,
+                    spacetimeInfo,
+                    params
+                )
             }
         }
         this.grid = result
@@ -83,82 +117,109 @@ class WrapSquareDomain {
 
 let stopDrawingCallback = null
 
-onmessage = e => {
-    // console.log(e);
-    if (e.data.type == 'init') {
-        running = false
-        if (checkPreconditions()) {
-            domain.initialize(initFunc, parameters.initFunc)
-            postMessage({ value: domain.grid, type: 'grid' })
-        }
-        return
-    } else if (e.data.type == 'start') {
-        running = true
-        return
-    } else if (e.data.type == 'stop') {
-        running = false
-        return
-    } else if (e.data.type == 'sync') {
-        const data = { ...parameters, text: { initFunc: initFunc.toString(), updateFunc: updateFunc.toString() } }
-        // console.log('syncing', data);
-        postMessage({ ...data, type: 'sync' })
-        return
-    } else if (e.data.type == 'init-func-text') {
-        try {
-            initFunc = eval(e.data.value)
-        } catch (error) {
-            console.error(error)
-        }
-    } else if (e.data.type == 'update-func-text') {
-        try {
-            updateFunc = eval(e.data.value)
-        } catch (error) {
-            console.error(error)
-        }
+const doInit = () => {
+    console.log('doing init...')
+    if (checkPreconditions()) {
+        console.log('preconditions checked...')
+        domain.initialize(initFunc, parameters.initFunc)
+        // console.log('posting message from domain')
+        postMessage({ messageType: 'grid', data: domain.grid })
+    } else {
+        postMessage({ messageType: 'info', data: 'doInit failed' })
     }
-    if ('parameters' in e.data) {
-        parameters.domain = { ...parameters.domain, ...(e.data.parameters.domain || {}) }
-        parameters.initFunc = { ...parameters.initFunc, ...(e.data.parameters.initFunc || {}) }
-        parameters.updateFunc = { ...parameters.updateFunc, ...(e.data.parameters.updateFunc || {}) }
+}
+
+onmessage = e => {
+    // console.log('domain message: ', e)
+    try {
+        const message = 'messageType' in e ? e : e.data
+
+        if (message.messageType == 'init') {
+            doInit()
+            return
+        } else if (message.messageType == 'start') {
+            console.log('DOMAIN STARTING')
+            running = true
+            return
+        } else if (message.messageType == 'stop') {
+            console.log('DOMAIN STOPPING')
+            running = false
+            return
+        } else if (message.messageType == 'sync') {
+            const data = { ...parameters, text: { initFunc: initFunc.toString(), updateFunc: updateFunc.toString() } }
+            // console.log('syncing', data);
+            postMessage({ ...data, messageType: 'sync' })
+            return
+        }
+
+        if ('parameters' in message.data) {
+            console.log('domain: setting parameters', message.data)
+            message.data.parameters.domain = { ...message.data.parameters.domain, ...(message.data.parameters.domain || {}) }
+        }
+
+        if ('updateFunc' in message.data) {
+            console.log('domain: setting update func', message.data)
+            try {
+                updateFunc = eval(message.data.updateFunc)
+            } catch (error) {
+                console.error(error)
+            }
+        }
+        if ('initFunc' in message.data) {
+            console.log('domain: setting init func', message.data)
+            try {
+                initFunc = eval(message.data.initFunc)
+                doInit()
+            } catch (error) {
+                console.error(error)
+            }
+        }
+    } catch (error) {
+        console.error('domain error', error)
     }
 }
 
 const checkPreconditions = () => {
     satisfied = true
     if (domain === null) {
-        // console.error('domain is null');
-        // satisfied = false;
         console.warn('domain is null, creating')
         domain = new WrapSquareDomain(parameters.domain.size)
-    }
-    if (initFunc === null) {
-        console.error('initFunc is null')
+    } else if (!(domain instanceof WrapSquareDomain)) {
+        console.error('domain type error: ', domain)
         satisfied = false
     }
-    if (updateFunc === null) {
-        console.error('domain is null')
+    if (typeof initFunc !== 'function') {
+        console.error('initFunc type error: ', initFunc)
+        satisfied = false
+    }
+    if (typeof updateFunc !== 'function') {
+        console.error('updateFunc type error: ', initFunc)
         satisfied = false
     }
     return satisfied
 };
 
 (async () => {
+    console.log('domain loop starting...')
     let i = 0
     while (true) {
         if (running) {
             if (!checkPreconditions()) {
                 running = false
+                console.warn('domain is not running!')
+                await new Promise(res => setTimeout(res, 10))
                 continue
             }
-            domain.update(updateFunc, parameters.updateFunc)
             i += 1
-            postMessage({ value: domain.grid, type: 'grid' })
+            domain.update(updateFunc, parameters.updateFunc)
+            postMessage({ messageType: 'grid', data: domain.grid, })
             if ((i % 1000) == 0) {
                 console.log('updating', i)
             }
-            await new Promise(res => setTimeout(res, 0))
+            await delay(1)
         } else {
             await delay(5)
         }
     }
+    console.log('domain loop done')
 })()
