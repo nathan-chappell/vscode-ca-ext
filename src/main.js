@@ -1,3 +1,5 @@
+const vscode = acquireVsCodeApi()
+
 const color2array = c => [parseInt(c.substring(1, 3), 16), parseInt(c.substring(3, 5), 16), parseInt(c.substring(5, 7), 16)]
 
 let requirementsDefined = true
@@ -6,6 +8,8 @@ if (!(requirementsDefined &&= typeof parameters === 'object')) { console.error(`
 if (!(requirementsDefined &&= typeof initFunc === 'function')) { console.error(`TypeError: initFunc: ${typeof initFunc}`) }
 if (!(requirementsDefined &&= typeof updateFunc === 'function')) { console.error(`TypeError: updateFunc: ${typeof updateFunc}`) }
 if (!requirementsDefined) { throw new Error("requirements not met!") }
+
+vscode.postMessage({ messageType: 'parameters', data: parameters })
 
 const configureWorkers = () => {
     let missingWorkers = false
@@ -71,9 +75,13 @@ const state = {
     reInitOnChange: false,
 }
 
-window.addEventListener('message', event => {
-    console.log('main received: ', event)
+window.addEventListener('message', e => {
+    console.log('main received: ', e)
     const message = 'messageType' in e ? e : e.data
+
+    if (message.messageType == 'send-parameters') {
+        vscode.postMessage({ messageType: 'parameters', data: parameters })
+    }
     if (message.messageType == 'init') {
         state.runState = 'initializing'
         drawingWorker.postMessage({ messageType: 'flush' })

@@ -20,6 +20,7 @@ class WebviewManager implements vscode.WebviewViewProvider {
 		context: vscode.WebviewViewResolveContext<unknown>,
 		token: vscode.CancellationToken
 	): void | Thenable<void> {
+		console.log('resolving webview view');
 		if (this.extensionUri == null) {
 			throw new Error("extensionUri was null");
 		}
@@ -41,6 +42,14 @@ class WebviewManager implements vscode.WebviewViewProvider {
 				<script src="${scriptUri}"></script>
 			</body>
 			</html>`;
+
+		// this.webviewPanel?.webview.postMessage({ messageType: 'send-parameters' });
+		this.webviewView.webview.onDidReceiveMessage(e => {
+			console.log('webview view', e);
+			if (e.messageType === 'send-params') {
+				this.webviewPanel?.webview.postMessage({ messageType: 'send-parameters' });
+			}
+		});
 	}
 
 	get panel(): vscode.WebviewPanel {
@@ -70,8 +79,9 @@ class WebviewManager implements vscode.WebviewViewProvider {
 		context.subscriptions.push({ dispose() { disposeWebviewPanel(); } });
 
 		this.webviewPanel.webview.onDidReceiveMessage(e => {
-			console.log('webviewPanel.webview received', e);
-			switch (e.data.type) {
+			const message = 'messageType' in e ? e : e.data;
+			console.log('webviewPanel.webview sent', message);
+			switch (message.messageType) {
 				case 'parameters': {
 					if (this.webviewView !== null) {
 						this.webviewView.webview.postMessage(e.data);
@@ -164,7 +174,7 @@ const defaultCaDeclarations = {
 		g: SpaceTimeInfo,
 		parameters: any,
 	) => {
-		console.log(g);
+		// console.log(g);
 		return Math.random() < .32 ? (g.quadrant % 2) : (g.quadrant + 1) % 2;
 		// if ((i + j) % 2 == 0) { return Math.random() < .5 ? 0 : 1; }
 		// return 0;
@@ -185,7 +195,8 @@ const defaultCaDeclarations = {
 		if (t_150 == 0 && quadrant === 1) { return Math.random() < .5 ** (r / 50); }
 		if (t_150 == 0 && quadrant == 2 && (i + j) < 230) { return Math.random() < .5; }
 		// if (t_150 == 0 && quadrant === 0 && (i < 40 && j > 110)) { return (Math.random() < .3 ? 1 : 0); }
-		if (((t % 30) == 0) && ((Math.abs(i - j) < 5) || (Math.abs((150 - i) - j) < 2 + quadrant))) { return c ? 0 : 1; }
+		// if (((t % 4) == 0) && ((Math.abs(i - j) < 8) || (Math.abs((150 - i) - j) < 3 + quadrant))) { return (c ? 0 : 1) * ((i + j) % 2); }
+		if (((t % 3) == 0) && ((Math.abs(i - j) < 8) || (Math.abs((150 - i) - j) < 3 + quadrant))) { return (1 - c) * (quadrant % 3 ? bottom : top) * ((i + j) % 2); }
 		// if ((t_150 == 0 || t_150 == 75) && ((Math.abs(i - j) < 2) || (150 - Math.abs(i - j) < 2))) { return c ? 0 : 1; }
 
 		const _q = quadrant === 3 ? 0 : quadrant;
