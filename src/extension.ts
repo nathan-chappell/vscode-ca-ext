@@ -17,12 +17,6 @@ class WebviewManager implements vscode.WebviewViewProvider {
 
 	parameters: any = null;
 
-	setViewParameters() {
-		if (this.parameters !== null && this.webviewView !== null) {
-			this.webviewView.webview.postMessage({ messageType: 'set-parameters', data: this.parameters });
-		}
-	}
-
 	resolveWebviewView(
 		webviewView: vscode.WebviewView,
 		context: vscode.WebviewViewResolveContext<unknown>,
@@ -44,10 +38,10 @@ class WebviewManager implements vscode.WebviewViewProvider {
 			</head>
 			<body>
 				<div id="colors">
-					<label for="c1"><span>c1</span></label><br /><input id="input-c1" class="color-input" type="color" name="c1" value="#6ec56e" /><input id="input-c1-val" type="number" name="c1-val" value="0" /></br>
-					<label for="c2"><span>c2</span></label><br /><input id="input-c2" class="color-input" type="color" name="c2" value="#554bec" /><input id="input-c2-val" type="number" name="c2-val" value="1" /></br>
-					<label for="c3"><span>c3</span></label><br /><input id="input-c3" class="color-input" type="color" name="c3" value="#000000" /><input id="input-c3-val" type="number" name="c3-val" value="2" /></br>
-					<label for="c4"><span>c4</span></label><br /><input id="input-c4" class="color-input" type="color" name="c4" value="#ffffff" /><input id="input-c4-val" type="number" name="c4-val" value="3" /></br>
+					<label for="c1"><span>c1</span></label><br /><input id="input-c1" class="color-input" type="color" name="c1" value="#6ec56e" /><input id="input-c1-val" class="color-input-val" type="number" name="c1-val" value="0" /></br>
+					<label for="c2"><span>c2</span></label><br /><input id="input-c2" class="color-input" type="color" name="c2" value="#554bec" /><input id="input-c2-val" class="color-input-val" type="number" name="c2-val" value="1" /></br>
+					<label for="c3"><span>c3</span></label><br /><input id="input-c3" class="color-input" type="color" name="c3" value="#000000" /><input id="input-c3-val" class="color-input-val" type="number" name="c3-val" value="2" /></br>
+					<label for="c4"><span>c4</span></label><br /><input id="input-c4" class="color-input" type="color" name="c4" value="#ffffff" /><input id="input-c4-val" class="color-input-val" type="number" name="c4-val" value="3" /></br>
 				</div>
 				<hr />
 				<div id="parameters"></div>
@@ -64,7 +58,14 @@ class WebviewManager implements vscode.WebviewViewProvider {
 				this.webviewPanel?.webview.postMessage({ messageType: 'colors', data: message.data });
 			}
 		});
-		this.setViewParameters();
+
+		this.webviewView.onDidChangeVisibility(e => {
+			if (this.parameters !== null && this.webviewView !== null) {
+				this.webviewView.webview.postMessage({ messageType: 'set-parameters', data: this.parameters });
+			} else {
+				console.warn('did not set parameters in view', this.parameters, this.webviewView);
+			}
+		});
 	}
 
 	get panel(): vscode.WebviewPanel {
@@ -97,6 +98,7 @@ class WebviewManager implements vscode.WebviewViewProvider {
 			const message = 'messageType' in e ? e : e.data;
 			if (message.messageType === 'send-parameters-to-view') {
 				this.parameters = message.data;
+				console.log('init panel', message);
 				this.webviewView?.webview.postMessage({ messageType: 'set-parameters', data: message.data });
 			}
 		});
@@ -178,49 +180,55 @@ interface SpaceTimeInfo {
 const defaultCaDeclarations = {
 	parameters: {
 		p: { min: 0, max: 1, step: .01, value: .23 },
-		'quadrant-modulater': { min: 1, max: 4, value: 2, step: 1 }
+		'beam-width': { min: 0, max: 50, value: 20, step: 10 },
+		'spawn-count': { min: 1, max: 8, value: 3, step: 1 },
+		'crowding-count': { min: 1, max: 8, value: 4, step: 1 },
+		'flow': { min: -1, max: 1, value: 0, step: 1 },
 	},
 
 	initFunc: (
 		g: SpaceTimeInfo,
 		parameters: any,
 	) => {
-		// console.log(g);
 		return Math.random() < .32 ? (g.quadrant % 2) : (g.quadrant + 1) % 2;
-		// if ((i + j) % 2 == 0) { return Math.random() < .5 ? 0 : 1; }
-		// return 0;
-		// if (parity) {
-		// 	return Math.random() < parameters.p ? quadrant % parameters['quadrant-modulater'] : 0;
-		// } else {
-		// 	return Math.random() < Math.pow(parameters.p, i / 50) ? 1 : 0;
-		// }
 	},
 
 	updateFunc: (
 		{ n, ne, e, se, s, sw, w, nw, c }: Neighborhood,
 		{ top, right, bottom, left, X, O, sum, corners, cardinals }: Features,
 		{ t, i, j, t_150, r, quadrant, x, y }: SpaceTimeInfo,
-		paramters: any,
+		parameters: any,
 	) => {
-		if (r < 20 * (1 + t_150 / 150)) { return (quadrant + 1) % 2; }
-		if (t_150 == 0 && quadrant === 1) { return Math.random() < .5 ** (r / 50); }
-		if (t_150 == 0 && quadrant == 2 && (i + j) < 230) { return Math.random() < .5; }
-		// if (t_150 == 0 && quadrant === 0 && (i < 40 && j > 110)) { return (Math.random() < .3 ? 1 : 0); }
-		// if (((t % 4) == 0) && ((Math.abs(i - j) < 8) || (Math.abs((150 - i) - j) < 3 + quadrant))) { return (c ? 0 : 1) * ((i + j) % 2); }
-		if (((t % 3) == 0) && ((Math.abs(i - j) < 8) || (Math.abs((150 - i) - j) < 16 + quadrant))) { return (1 - c) * (quadrant % 3 ? left : top) * ((i + 2 * j) % 2); }
-		// if ((t_150 == 0 || t_150 == 75) && ((Math.abs(i - j) < 2) || (150 - Math.abs(i - j) < 2))) { return c ? 0 : 1; }
+		const beamWidth = parameters['beam-width'] ?? 1;
+		const p = parameters['p'] ?? .5;
+		const spawnCount = parameters['spawn-count'] ?? 3;
+		const crowdingCount = parameters['crowding-count'] ?? 4;
+		const flow = parameters['flow'] ?? 0;
 
-		const _q = quadrant === 3 ? 0 : quadrant;
+		if ((t_150 % 25) == 0 && Math.abs(i - j) < beamWidth) { return (Math.random() < p ? 1 : c); }
 
-		if (c == 1 && sum < 2 + (_q % 2)) {
-			return (0 + _q) % 2;
-		} else if (c == 1 && 2 <= sum && sum <= (3 + _q)) {
-			return (1 + _q) % 2;
-		} else if (c == 1 && 4 <= sum) {
-			return (0 + _q) % 2;
-		} else if (c == 0 && sum == 3 || sw * s * w * n || e * n * s * ne) {
-			// return (1 + _q) % 2;
+		if (c == 1 && sum < crowdingCount * (quadrant % 2)) {
+			// return (quadrant % 2) ? 1 : 0;
+			return 0;
+		} else if (c == 1 && 2 <= sum && sum <= (crowdingCount + (quadrant % 2))) {
+			// return (quadrant % 2) ? 1 : 0;
 			return 1;
+		} else if (c == 1 && crowdingCount <= (spawnCount + (quadrant % 2))) {
+			// return (quadrant % 2) ? 0 : 1;
+			return 0;
+		} else if (c == 0 && sum == spawnCount) {
+			// return (quadrant % 2) ? 1 : 0;
+			return 1;
+		} else if (flow < 0) {
+			if (quadrant == 0) { return w * sw * s ? 1 : c; }
+			if (quadrant == 1) { return e * se * s ? 1 : c; }
+			if (quadrant == 2) { return w * nw * n ? 1 : c; }
+			if (quadrant == 3) { return e * ne * n ? 1 : c; }
+		} else if (flow > 0) {
+			if (quadrant == 3) { return w * sw * e ? 1 : c; }
+			if (quadrant == 2) { return e * se * e ? 1 : c; }
+			if (quadrant == 1) { return w * nw * e ? 1 : c; }
+			if (quadrant == 0) { return e * ne * e ? 1 : c; }
 		} else {
 			return 0;
 		}

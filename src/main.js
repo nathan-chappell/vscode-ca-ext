@@ -35,7 +35,7 @@ const configureWorkers = () => {
     const offscreen = canvasCaCanvas.transferControlToOffscreen()
     drawingWorker.postMessage({ canvas: offscreen, messageType: 'set-canvas' }, [offscreen])
     domainWorker.postMessage({ messageType: 'set-funcs', data: { initFunc: initFunc.toString(), updateFunc: updateFunc.toString(), } })
-    domainWorker.postMessage({ messageType: 'set-parameters', parameters })
+    domainWorker.postMessage({ messageType: 'set-parameters', data: parameters })
     domainWorker.postMessage({ messageType: 'start-domain-update' })
 }
 
@@ -46,7 +46,10 @@ const messageHandlers = {
         gridStylerWorker.postMessage({ messageType: 'set-colors', data: message.data })
         drawingWorker.postMessage({ messageType: 'flush' })
     },
-    'parameters': message => { domainWorker.postMessage({ messageType: 'set-parameters', data: message.data }) },
+    'parameters': message => {
+        domainWorker.postMessage({ messageType: 'set-parameters', data: message.data })
+        drawingWorker.postMessage({ messageType: 'flush' })
+    },
 }
 
 const listenerName = 'main'

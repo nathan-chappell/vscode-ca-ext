@@ -87,15 +87,14 @@ class WrapSquareDomain {
             i,
             j,
             parity: (i + j) % 2,
-            quadrant: 2 * (i > this.size / 2) + (j < this.size / 2),
+            quadrant: 2 * (i > this.size / 2) + (j > this.size / 2),
             x: i - this.size / 2,
             y: j - this.size / 2,
             r: Math.floor(Math.hypot(i - this.size / 2, j - this.size / 2)),
         }
-
     }
 
-    update(updateFunc, params) {
+    update() {
         const result = makeZeroSquare(this.size)
         for (let i = 0; i < this.size; ++i) {
             for (let j = 0; j < this.size; ++j) {
@@ -105,7 +104,7 @@ class WrapSquareDomain {
                     neighborhood,
                     features,
                     spacetimeInfo,
-                    params
+                    parameters
                 )
             }
         }
@@ -167,7 +166,7 @@ onmessage = e => {
                 continue
             }
             i += 1
-            domain.update(updateFunc, parameters)
+            domain.update()
             outputGrid()
             if ((i % 200) == 0) { console.log('updating', i) }
             await delay(1)
