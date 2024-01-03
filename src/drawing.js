@@ -1,50 +1,25 @@
-let parameters = {
-    rate: 30,
-}
 let offscreen = null
 let ctx = null
 let styleGrids = []
+let rate_tps = 30 // transitions per second
 
 const highWaterMark = 200
 const lowWaterMark = 100
 
-const delay = t => new Promise(res => setTimeout(res, t))
-
-onmessage = e => {
-    const message = 'messageType' in e ? e : e.data
-    // console.log('drawing got message', message)
-
-    if (message.messageType == 'flush') {
-        styleGrids = []
-        return
-    } else if (message.messageType == 'set-canvas') {
-        offscreen = message.canvas
-        ctx = offscreen.getContext('2d')
-    } else if (message.messageType == 'style-grid') {
-        styleGrids.push(message.data)
-        if (styleGrids.length > highWaterMark) {
-            postMessage({ messageType: 'high-water-mark' })
-        }
-    }
-    if ('parameters' in message) {
-        parameters = { ...parameters, ...message.parameters }
-    }
+const checkWaterLevel = () => {
+    if (styleGrids.length == 0) { console.warn('styleGrids is empty!') }
+    if (styleGrids.length < lowWaterMark) { postMessage({ messageType: 'low-water-mark' }) }
+    if (styleGrids.length > highWaterMark) { postMessage({ messageType: 'high-water-mark' }) }
 }
 
+const delay = t => new Promise(res => setTimeout(res, t))
 
 async function* gridStream() {
     while (true) {
         const start = Date.now()
-        while (styleGrids.length == 0) {
-            await delay(4)
-        }
-        await delay(Math.max(0, parameters.rate - (Date.now() - start)))
+        while (styleGrids.length == 0) { await delay(4) }
+        await delay(Math.max(0, (1000 / rate_tps) - (Date.now() - start)))
         yield styleGrids.shift()
-        if (styleGrids.length == 0) {
-            postMessage({ messageType: 'empty' })
-        } else if (styleGrids.length < lowWaterMark) {
-            postMessage({ messageType: 'low-water-mark' })
-        }
     }
 }
 
@@ -63,13 +38,30 @@ const drawGrid = (grid) => {
             ctx.fillRect(ch * j, cw * i, cw, ch)
         }
     }
+}
+
+const messageHandlers = {
+    'flush': () => { styleGrids = [] },
+    'set-canvas': message => { offscreen = message.canvas; ctx = offscreen.getContext('2d') },
+    'grid-styler-output': message => { styleGrids.push(message.data); checkWaterLevel() },
+    'set-rate-tps': message => { rate_tps = message.data }
+}
+
+const listenerName = 'parametersMain'
+
+onmessage = e => {
+    const message = 'messageType' in e ? e : e.data
+    const handler = messageHandlers[message.messageType]
+    if (typeof handler === 'undefined') {
+        console.error(`${listenerName}: no handler for ${message.messageType}`, message, messageHandlers)
+    } else if (typeof handler !== 'function') {
+        console.error(`${listenerName}: handler is not a function ${message.messageType} - ${handler}`, message, messageHandlers)
+    } else {
+        handler(message)
+    }
 };
 
 (async () => {
-    while (ctx === null) {
-        await delay(50)
-    }
-    for await (let grid of gridStream()) {
-        drawGrid(grid)
-    }
+    while (ctx === null) { await delay(50) }
+    for await (let grid of gridStream()) { drawGrid(grid); checkWaterLevel() }
 })()

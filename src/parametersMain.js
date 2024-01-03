@@ -1,43 +1,44 @@
-const vscode = acquireVsCodeApi();
-const parametersDiv = document.getElementById('parameters');
+const vscode = acquireVsCodeApi()
 
-const colorNames = ['c1', 'c2', 'c3', 'c4'];
-const colorInputs = colorNames.map(c => document.getElementById(`input-${c}`));
+const colorInputs = ['c1', 'c2', 'c3', 'c4'].map(c => document.getElementById(`input-${c}`))
 
-const sendColors = () => {
-    console.log('sending colors');
-    vscode.postMessage({
-        messageType: 'send-colors', data: colorInputs.map(element => {
-            return [document.getElementById(`${element.id}-val`).valueAsNumber, element.value];
-        })
-    });
+for (let colorInput of document.querySelectorAll('.color-input')) {
+    colorInput.oninput = e => {
+        const colors = [...document.querySelectorAll(".color-input")].map(input => [document.getElementById(`${input.id}-val`).valueAsNumber, input.value])
+        vscode.postMessage({ messageType: 'send-colors-to-panel', data: colors })
+    }
 };
 
-for (let colorInput of colorInputs) {
-    colorInput.oninput = e => sendColors();
-};
+const messageHandlers = {
+    'set-parameters': (message) => {
+        const parameters = Object.entries(message.data)
+        const parameterNames = []
+        document.getElementById('parameters').innerHTML = parameters.map((p, i) => {
+            const name = p[0] || `parameter-${i}`
+            parameterNames.push(name)
+            const attributes = Object.entries({ type: 'number', name: name, ...p[1] }).map(([k, v]) => `${k}="${v}"`).join(" ")
+            return `\n<label for="${name}"><span>${name}</span></label><br /><input id="input-${name}" ${attributes} /><hr>`
+        }).join(``)
 
-vscode.postMessage({ messageType: 'send-parameters' });
+        for (let name of parameterNames) {
+            document.getElementById(`input-${name}`).onchange = e => {
+                const parameters = Object.fromEntries([...document.querySelectorAll("#parameters input")].map(input => [input.name, input.type == 'number' ? input.target.valueAsNumber : input.target.value]))
+                vscode.postMessage({ messageType: 'send-parameters-to-panel', data: parameters })
+            }
+        }
+    },
+}
+
+const listenerName = 'parametersMain'
 
 window.addEventListener('message', e => {
-    const message = 'messageType' in e ? e : e.data;
-    console.log('parametersMain received', message);
-
-    if (message.messageType === 'set-params') {
-        const parameters = Object.entries(message);
-        const parameterNames = [];
-        parametersDiv.innerHTML = parameters.map((p, i) => {
-            const name = p[0] || `parameter-${i}`;
-            parameterNames.push(name);
-            return `\n<label for="${name}"><span>${name}</span></label><br /><input id="input-${name}" ` + Object.entries({ type: 'number', name: name, ...p[1] }).map(([k, v]) => `${k}="${v}"`).join(" ") + ` /><hr>`;
-        }).join(``);
-        for (let name of parameterNames) {
-            document.getElementById(`input-${name}`).onchange = e => vscode.postMessage({ messageType: 'parameter-change', data: { [name]: e.target.type == 'number' ? e.target.valueAsNumber : e.target.value } });
-        }
-    } else if (message.messageType === 'send-colors') {
-        sendColors();
+    const message = 'messageType' in e ? e : e.data
+    const handler = messageHandlers[message.messageType]
+    if (typeof handler === 'undefined') {
+        console.error(`${listenerName}: no handler for ${message.messageType}`, message, messageHandlers)
+    } else if (typeof handler !== 'function') {
+        console.error(`${listenerName}: handler is not a function ${message.messageType} - ${handler}`, message, messageHandlers)
+    } else {
+        handler(message)
     }
-
-
-
-});
+})

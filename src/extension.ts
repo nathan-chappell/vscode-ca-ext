@@ -15,19 +15,23 @@ class WebviewManager implements vscode.WebviewViewProvider {
 	drawingWorkerSrc: string | null = null;
 	gridStylerWorkerSrc: string | null = null;
 
+	parameters: any = null;
+
+	setViewParameters() {
+		if (this.parameters !== null && this.webviewView !== null) {
+			this.webviewView.webview.postMessage({ messageType: 'set-parameters', data: this.parameters });
+		}
+	}
+
 	resolveWebviewView(
 		webviewView: vscode.WebviewView,
 		context: vscode.WebviewViewResolveContext<unknown>,
 		token: vscode.CancellationToken
 	): void | Thenable<void> {
 		console.log('resolving webview view');
-		if (this.extensionUri == null) {
-			throw new Error("extensionUri was null");
-		}
+		if (this.extensionUri == null) { throw new Error("extensionUri was null"); }
 		this.webviewView = webviewView;
-		this.webviewView.webview.options = {
-			enableScripts: true,
-		};
+		this.webviewView.webview.options = { enableScripts: true };
 
 		const scriptUri = this.webviewView.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'src', 'parametersMain.js'));
 		this.webviewView.webview.html = `<!DOCTYPE html>
@@ -40,10 +44,10 @@ class WebviewManager implements vscode.WebviewViewProvider {
 			</head>
 			<body>
 				<div id="colors">
-					<label for="c1"><span>c1</span></label><br /><input id="input-c1" type="color" name="c1" value="#1f10de" /><input id="input-c1-val" type="number" name="c1-val" value="0" /></br>
-					<label for="c2"><span>c2</span></label><br /><input id="input-c2" type="color" name="c2" value="#cc1100" /><input id="input-c2-val" type="number" name="c2-val" value="1" /></br>
-					<label for="c3"><span>c3</span></label><br /><input id="input-c3" type="color" name="c3" value="#000000" /><input id="input-c3-val" type="number" name="c3-val" value="2" /></br>
-					<label for="c4"><span>c4</span></label><br /><input id="input-c4" type="color" name="c4" value="#ffffff" /><input id="input-c4-val" type="number" name="c4-val" value="3" /></br>
+					<label for="c1"><span>c1</span></label><br /><input id="input-c1" class="color-input" type="color" name="c1" value="#6ec56e" /><input id="input-c1-val" type="number" name="c1-val" value="0" /></br>
+					<label for="c2"><span>c2</span></label><br /><input id="input-c2" class="color-input" type="color" name="c2" value="#554bec" /><input id="input-c2-val" type="number" name="c2-val" value="1" /></br>
+					<label for="c3"><span>c3</span></label><br /><input id="input-c3" class="color-input" type="color" name="c3" value="#000000" /><input id="input-c3-val" type="number" name="c3-val" value="2" /></br>
+					<label for="c4"><span>c4</span></label><br /><input id="input-c4" class="color-input" type="color" name="c4" value="#ffffff" /><input id="input-c4-val" type="number" name="c4-val" value="3" /></br>
 				</div>
 				<hr />
 				<div id="parameters"></div>
@@ -52,14 +56,15 @@ class WebviewManager implements vscode.WebviewViewProvider {
 
 		this.webviewView.webview.onDidReceiveMessage(e => {
 			const message = 'messageType' in e ? e : e.data;
-			console.log('webview view received', message);
-			if (message.messageType === 'send-parameters') {
-				this.webviewPanel?.webview.postMessage(message);
-			} else if (message.messageType === 'send-colors') {
-				this.webviewPanel?.webview.postMessage(message)
+			console.log('webview view posted', message);
+			if (message.messageType === 'send-parameters-to-panel') {
+				this.parameters = message.data;
+				this.webviewPanel?.webview.postMessage({ messageType: 'parameters', data: message.data });
+			} else if (message.messageType === 'send-colors-to-panel') {
+				this.webviewPanel?.webview.postMessage({ messageType: 'colors', data: message.data });
 			}
 		});
-		this.webviewView.webview.postMessage({ messageType: 'send-colors' });
+		this.setViewParameters();
 	}
 
 	get panel(): vscode.WebviewPanel {
@@ -90,13 +95,9 @@ class WebviewManager implements vscode.WebviewViewProvider {
 
 		this.webviewPanel.webview.onDidReceiveMessage(e => {
 			const message = 'messageType' in e ? e : e.data;
-			console.log('webviewPanel.webview sent', message);
-			switch (message.messageType) {
-				case 'send-parameters': {
-					if (this.webviewView !== null) {
-						this.webviewView.webview.postMessage(message);
-					}
-				}
+			if (message.messageType === 'send-parameters-to-view') {
+				this.parameters = message.data;
+				this.webviewView?.webview.postMessage({ messageType: 'set-parameters', data: message.data });
 			}
 		});
 	}

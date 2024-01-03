@@ -1,8 +1,5 @@
-let parameters = {
-    domain: { messageType: 'WrapSquareDomain', size: 150 },
-    initFunc: { p: .5, a: 0, b: 0 },
-    updateFunc: { a_: 0, b_: 0, c_: 0, r1: .1, r2: .01 },
-}
+let parameters = {}
+let domainSize = 150
 let running = false
 let domain = null
 let initFunc = null
@@ -16,6 +13,8 @@ class WrapSquareDomain {
         this.size = size
         this.grid = null
         this.t = 0
+
+        if (initFunc !== null) { this.initialize(initFunc, parameters) }
     }
 
     initialize(initFunc, params) {
@@ -115,88 +114,45 @@ class WrapSquareDomain {
     }
 }
 
-let stopDrawingCallback = null
-
-const doInit = () => {
-    // console.log('doing init...')
-    if (checkPreconditions()) {
-        // console.log('preconditions checked...')
-        domain.initialize(initFunc, parameters.initFunc)
-        // console.log('posting message from domain')
-        postMessage({ messageType: 'grid', data: domain.grid })
-    } else {
-        postMessage({ messageType: 'info', data: 'doInit failed' })
-    }
-}
-
-onmessage = e => {
-    // console.log('domain message: ', e)
-    try {
-        const message = 'messageType' in e ? e : e.data
-
-        if (message.messageType == 'init') {
-            doInit()
-            return
-        } else if (message.messageType == 'start') {
-            // console.log('DOMAIN STARTING')
-            running = true
-            return
-        } else if (message.messageType == 'stop') {
-            // console.log('DOMAIN STOPPING')
-            running = false
-            return
-        } else if (message.messageType == 'sync') {
-            const data = { ...parameters, text: { initFunc: initFunc.toString(), updateFunc: updateFunc.toString() } }
-            // console.log('syncing', data);
-            postMessage({ ...data, messageType: 'sync' })
-            return
-        }
-
-        if ('parameters' in message.data) {
-            console.log('domain: setting parameters', message.data)
-            message.data.parameters.domain = { ...message.data.parameters.domain, ...(message.data.parameters.domain || {}) }
-        }
-
-        if ('updateFunc' in message.data) {
-            console.log('domain: setting update func', message.data)
-            try {
-                updateFunc = eval(message.data.updateFunc)
-            } catch (error) {
-                console.error(error)
-            }
-        }
-        if ('initFunc' in message.data) {
-            console.log('domain: setting init func', message.data)
-            try {
-                initFunc = eval(message.data.initFunc)
-                doInit()
-            } catch (error) {
-                console.error(error)
-            }
-        }
-    } catch (error) {
-        console.error('domain error', error)
-    }
-}
+const outputGrid = () => { postMessage({ messageType: 'domain-grid-output', data: domain.grid }) }
 
 const checkPreconditions = () => {
     satisfied = true
-    if (domain === null) {
-        console.warn('domain is null, creating')
-        domain = new WrapSquareDomain(parameters.domain.size)
-    } else if (!(domain instanceof WrapSquareDomain)) {
-        console.error('domain type error: ', domain)
-        satisfied = false
-    }
-    if (typeof initFunc !== 'function') {
-        console.error('initFunc type error: ', initFunc)
-        satisfied = false
-    }
-    if (typeof updateFunc !== 'function') {
-        console.error('updateFunc type error: ', initFunc)
-        satisfied = false
-    }
+    if (domain === null) { console.warn('domain is null, creating'); domain = new WrapSquareDomain(domainSize) }
+    if (!(domain instanceof WrapSquareDomain)) { console.warn('domain type error: ', domain); satisfied = false }
+    if (typeof initFunc !== 'function') { console.warn('initFunc type error: ', initFunc); satisfied = false }
+    if (typeof updateFunc !== 'function') { console.warn('updateFunc type error: ', updateFunc); satisfied = false }
     return satisfied
+}
+
+const messageHandlers = {
+    'init-domain': () => {
+        if (checkPreconditions()) {
+            domain.initialize(initFunc, parameters)
+            outputGrid()
+        } else {
+            console.error('init-domain failed due to preconditions check')
+        }
+    },
+    'start-domain-update': () => { running = true },
+    'stop-domain-update': () => { running = false },
+    'set-domain-size': message => { domainSize = message.data; domain = null },
+    'set-funcs': message => { updateFunc = eval(message.data.updateFunc); initFunc = eval(message.data.initFunc) },
+    'set-parameters': message => { parameters = message.data },
+}
+
+const listenerName = 'domain'
+
+onmessage = e => {
+    const message = 'messageType' in e ? e : e.data
+    const handler = messageHandlers[message.messageType]
+    if (typeof handler === 'undefined') {
+        console.error(`${listenerName}: no handler for ${message.messageType}`, message, messageHandlers)
+    } else if (typeof handler !== 'function') {
+        console.error(`${listenerName}: handler is not a function ${message.messageType} - ${handler}`, message, messageHandlers)
+    } else {
+        handler(message)
+    }
 };
 
 (async () => {
@@ -207,15 +163,13 @@ const checkPreconditions = () => {
             if (!checkPreconditions()) {
                 running = false
                 console.warn('domain is not running!')
-                await new Promise(res => setTimeout(res, 10))
+                await delay(10)
                 continue
             }
             i += 1
-            domain.update(updateFunc, parameters.updateFunc)
-            postMessage({ messageType: 'grid', data: domain.grid, })
-            if ((i % 200) == 0) {
-                console.log('updating', i)
-            }
+            domain.update(updateFunc, parameters)
+            outputGrid()
+            if ((i % 200) == 0) { console.log('updating', i) }
             await delay(1)
         } else {
             await delay(5)
