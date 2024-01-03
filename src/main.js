@@ -40,6 +40,10 @@ const configureWorkers = () => {
 }
 
 const canvasCaCanvas = document.getElementById('ca-canvas')
+canvasCaCanvas.onclick = () => {
+    domainWorker.postMessage({ messageType: 'init-domain' })
+    drawingWorker.postMessage({ messageType: 'flush' })
+}
 
 const messageHandlers = {
     'colors': message => {

@@ -181,16 +181,16 @@ const defaultCaDeclarations = {
 	parameters: {
 		p: { min: 0, max: 1, step: .01, value: .23 },
 		'beam-width': { min: 0, max: 50, value: 20, step: 10 },
-		'spawn-count': { min: 1, max: 8, value: 3, step: 1 },
-		'crowding-count': { min: 1, max: 8, value: 4, step: 1 },
+		'spawn-count': { min: 0, max: 9, value: 3, step: 1 },
+		'crowding-count': { min: 0, max: 9, value: 4, step: 1 },
 		'flow': { min: -1, max: 1, value: 0, step: 1 },
 	},
 
 	initFunc: (
-		g: SpaceTimeInfo,
+		{ i, j }: SpaceTimeInfo,
 		parameters: any,
 	) => {
-		return Math.random() < .32 ? (g.quadrant % 2) : (g.quadrant + 1) % 2;
+		return (i < 10) || (j < 10) || (i > 140) || (j > 140) || Math.random() < parameters.p ? 1 : 0;
 	},
 
 	updateFunc: (
@@ -205,30 +205,22 @@ const defaultCaDeclarations = {
 		const crowdingCount = parameters['crowding-count'] ?? 4;
 		const flow = parameters['flow'] ?? 0;
 
-		if ((t_150 % 25) == 0 && Math.abs(i - j) < beamWidth) { return (Math.random() < p ? 1 : c); }
+		if ((t_150 % 25) == 0 && Math.abs(i - j) < beamWidth) { return (Math.random() < p ? 1 : (quadrant % 3) % 2); }
 
-		if (c == 1 && sum < crowdingCount * (quadrant % 2)) {
-			// return (quadrant % 2) ? 1 : 0;
+		// if (sum == 7) { return quadrant % 2 || t % 2; }
+
+		if (flow < 0 && r > 50) {
+			return (left > 0 || bottom > 0) && X > 2 ? 1 : c;
+		} else if (flow > 0 && r > 50) {
+			return (left > 1 || bottom > 1) && X > 2 ? 0 : 1;
+		} else if (c == 1 && sum < spawnCount) {
 			return 0;
-		} else if (c == 1 && 2 <= sum && sum <= (crowdingCount + (quadrant % 2))) {
-			// return (quadrant % 2) ? 1 : 0;
+		} else if (c == 1 && spawnCount <= sum && sum <= crowdingCount) {
 			return 1;
-		} else if (c == 1 && crowdingCount <= (spawnCount + (quadrant % 2))) {
-			// return (quadrant % 2) ? 0 : 1;
+		} else if (c == 1 && crowdingCount < sum) {
 			return 0;
-		} else if (c == 0 && sum == spawnCount) {
-			// return (quadrant % 2) ? 1 : 0;
+		} else if (c == 0 && (sum == spawnCount || (X == 3 && O == 0))) {
 			return 1;
-		} else if (flow < 0) {
-			if (quadrant == 0) { return w * sw * s ? 1 : c; }
-			if (quadrant == 1) { return e * se * s ? 1 : c; }
-			if (quadrant == 2) { return w * nw * n ? 1 : c; }
-			if (quadrant == 3) { return e * ne * n ? 1 : c; }
-		} else if (flow > 0) {
-			if (quadrant == 3) { return w * sw * e ? 1 : c; }
-			if (quadrant == 2) { return e * se * e ? 1 : c; }
-			if (quadrant == 1) { return w * nw * e ? 1 : c; }
-			if (quadrant == 0) { return e * ne * e ? 1 : c; }
 		} else {
 			return 0;
 		}
