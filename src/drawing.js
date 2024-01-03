@@ -11,8 +11,8 @@ const lowWaterMark = 100
 const delay = t => new Promise(res => setTimeout(res, t))
 
 onmessage = e => {
-    // console.log('drawing got message', e.data)
     const message = 'messageType' in e ? e : e.data
+    // console.log('drawing got message', message)
 
     if (message.messageType == 'flush') {
         styleGrids = []

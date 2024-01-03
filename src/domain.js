@@ -19,7 +19,7 @@ class WrapSquareDomain {
     }
 
     initialize(initFunc, params) {
-        console.log('initializing domain', this, arguments)
+        // console.log('initializing domain', this, arguments)
         this.grid = makeZeroSquare(this.size)
         for (let i = 0; i < this.size; ++i) {
             for (let j = 0; j < this.size; ++j) {
@@ -118,9 +118,9 @@ class WrapSquareDomain {
 let stopDrawingCallback = null
 
 const doInit = () => {
-    console.log('doing init...')
+    // console.log('doing init...')
     if (checkPreconditions()) {
-        console.log('preconditions checked...')
+        // console.log('preconditions checked...')
         domain.initialize(initFunc, parameters.initFunc)
         // console.log('posting message from domain')
         postMessage({ messageType: 'grid', data: domain.grid })
@@ -138,11 +138,11 @@ onmessage = e => {
             doInit()
             return
         } else if (message.messageType == 'start') {
-            console.log('DOMAIN STARTING')
+            // console.log('DOMAIN STARTING')
             running = true
             return
         } else if (message.messageType == 'stop') {
-            console.log('DOMAIN STOPPING')
+            // console.log('DOMAIN STOPPING')
             running = false
             return
         } else if (message.messageType == 'sync') {
@@ -213,7 +213,7 @@ const checkPreconditions = () => {
             i += 1
             domain.update(updateFunc, parameters.updateFunc)
             postMessage({ messageType: 'grid', data: domain.grid, })
-            if ((i % 1000) == 0) {
+            if ((i % 200) == 0) {
                 console.log('updating', i)
             }
             await delay(1)

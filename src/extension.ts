@@ -36,20 +36,30 @@ class WebviewManager implements vscode.WebviewViewProvider {
 				<meta charset="UTF-8">
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
 				<title>CA Parameters</title>
+				<script defer src="${scriptUri}"></script>
 			</head>
 			<body>
+				<div id="colors">
+					<label for="c1"><span>c1</span></label><br /><input id="input-c1" type="color" name="c1" value="#1f10de" /><input id="input-c1-val" type="number" name="c1-val" value="0" /></br>
+					<label for="c2"><span>c2</span></label><br /><input id="input-c2" type="color" name="c2" value="#cc1100" /><input id="input-c2-val" type="number" name="c2-val" value="1" /></br>
+					<label for="c3"><span>c3</span></label><br /><input id="input-c3" type="color" name="c3" value="#000000" /><input id="input-c3-val" type="number" name="c3-val" value="2" /></br>
+					<label for="c4"><span>c4</span></label><br /><input id="input-c4" type="color" name="c4" value="#ffffff" /><input id="input-c4-val" type="number" name="c4-val" value="3" /></br>
+				</div>
+				<hr />
 				<div id="parameters"></div>
-				<script src="${scriptUri}"></script>
 			</body>
 			</html>`;
 
-		// this.webviewPanel?.webview.postMessage({ messageType: 'send-parameters' });
 		this.webviewView.webview.onDidReceiveMessage(e => {
-			console.log('webview view', e);
-			if (e.messageType === 'send-params') {
-				this.webviewPanel?.webview.postMessage({ messageType: 'send-parameters' });
+			const message = 'messageType' in e ? e : e.data;
+			console.log('webview view received', message);
+			if (message.messageType === 'send-parameters') {
+				this.webviewPanel?.webview.postMessage(message);
+			} else if (message.messageType === 'send-colors') {
+				this.webviewPanel?.webview.postMessage(message)
 			}
 		});
+		this.webviewView.webview.postMessage({ messageType: 'send-colors' });
 	}
 
 	get panel(): vscode.WebviewPanel {
@@ -82,9 +92,9 @@ class WebviewManager implements vscode.WebviewViewProvider {
 			const message = 'messageType' in e ? e : e.data;
 			console.log('webviewPanel.webview sent', message);
 			switch (message.messageType) {
-				case 'parameters': {
+				case 'send-parameters': {
 					if (this.webviewView !== null) {
-						this.webviewView.webview.postMessage(e.data);
+						this.webviewView.webview.postMessage(message);
 					}
 				}
 			}
@@ -196,7 +206,7 @@ const defaultCaDeclarations = {
 		if (t_150 == 0 && quadrant == 2 && (i + j) < 230) { return Math.random() < .5; }
 		// if (t_150 == 0 && quadrant === 0 && (i < 40 && j > 110)) { return (Math.random() < .3 ? 1 : 0); }
 		// if (((t % 4) == 0) && ((Math.abs(i - j) < 8) || (Math.abs((150 - i) - j) < 3 + quadrant))) { return (c ? 0 : 1) * ((i + j) % 2); }
-		if (((t % 3) == 0) && ((Math.abs(i - j) < 8) || (Math.abs((150 - i) - j) < 3 + quadrant))) { return (1 - c) * (quadrant % 3 ? bottom : top) * ((i + j) % 2); }
+		if (((t % 3) == 0) && ((Math.abs(i - j) < 8) || (Math.abs((150 - i) - j) < 16 + quadrant))) { return (1 - c) * (quadrant % 3 ? left : top) * ((i + 2 * j) % 2); }
 		// if ((t_150 == 0 || t_150 == 75) && ((Math.abs(i - j) < 2) || (150 - Math.abs(i - j) < 2))) { return c ? 0 : 1; }
 
 		const _q = quadrant === 3 ? 0 : quadrant;
@@ -207,7 +217,7 @@ const defaultCaDeclarations = {
 			return (1 + _q) % 2;
 		} else if (c == 1 && 4 <= sum) {
 			return (0 + _q) % 2;
-		} else if (c == 0 && sum == 3) {
+		} else if (c == 0 && sum == 3 || sw * s * w * n || e * n * s * ne) {
 			// return (1 + _q) % 2;
 			return 1;
 		} else {
