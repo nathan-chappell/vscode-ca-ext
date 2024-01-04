@@ -37,6 +37,9 @@ class WebviewManager implements vscode.WebviewViewProvider {
 				<script defer src="${scriptUri}"></script>
 			</head>
 			<body>
+				<div id="controls">
+					<label for="c1"><span>rate tps</span></label><br /><input id="input-rate_tps" class="control-input" type="number" name="rate_tps" min="1" value="30" step="5" /></br>
+				</div>
 				<div id="colors">
 					<label for="c1"><span>c1</span></label><br /><input id="input-c1" class="color-input" type="color" name="c1" value="#6ec56e" /><input id="input-c1-val" class="color-input-val" type="number" name="c1-val" value="0" /></br>
 					<label for="c2"><span>c2</span></label><br /><input id="input-c2" class="color-input" type="color" name="c2" value="#554bec" /><input id="input-c2-val" class="color-input-val" type="number" name="c2-val" value="1" /></br>
@@ -56,6 +59,8 @@ class WebviewManager implements vscode.WebviewViewProvider {
 				this.webviewPanel?.webview.postMessage({ messageType: 'parameters', data: message.data });
 			} else if (message.messageType === 'send-colors-to-panel') {
 				this.webviewPanel?.webview.postMessage({ messageType: 'colors', data: message.data });
+			} else if (message.messageType === 'set-rate_tps') {
+				this.webviewPanel?.webview.postMessage({ messageType: 'set-rate_tps', data: message.data });
 			}
 		});
 
@@ -246,14 +251,24 @@ export async function activate(context: vscode.ExtensionContext) {
 		})
 	);
 
-	// context.subscriptions.push(
-	// 	vscode.workspace.onDidSaveTextDocument(e => {
-	// 		if (e.fileName.endsWith('.ca.js')) {
-	// 			const caDeclarationsText = e.getText();
-	// 			webviewManager.updateWebviewPanelHtml(caDeclarationsText);
-	// 		}
-	// 	})
-	// );
+	context.subscriptions.push(vscode.commands.registerCommand(
+		'cellularautomata-js.copy-decls',
+		() => {
+			console.log("copy-decls")
+			vscode.env.clipboard.writeText(defaultCaDeclarationsText)
+			vscode.window.showInformationMessage('Default CA Declarations copied to clipboard.');
+			// webviewManager.updateWebviewPanelHtml(currentFileText);
+		})
+	);
+
+	context.subscriptions.push(
+		vscode.workspace.onDidSaveTextDocument(e => {
+			if (e.fileName.endsWith('.ca.js')) {
+				const caDeclarationsText = e.getText();
+				webviewManager.updateWebviewPanelHtml(caDeclarationsText);
+			}
+		})
+	);
 	// https://github.com/microsoft/vscode-extension-samples/blob/main/webview-view-sample/src/extension.ts
 	context.subscriptions.push(vscode.window.registerWebviewViewProvider('cellularautomata-js.params', webviewManager));
 	await webviewManager.initializeWebviewPanelFromContext(context);

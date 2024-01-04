@@ -25,6 +25,10 @@
       {
         "command": "cellularautomata-js.run",
         "title": "CA Run"
+      },
+      {
+        "command": "cellularautomata-js.copy-decls",
+        "title": "CA Copy CA Declarations"
       }
     ]
   },
