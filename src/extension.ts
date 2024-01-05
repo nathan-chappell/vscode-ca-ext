@@ -38,7 +38,11 @@ class WebviewManager implements vscode.WebviewViewProvider {
 			</head>
 			<body>
 				<div id="controls">
-					<label for="c1"><span>rate tps</span></label><br /><input id="input-rate_tps" class="control-input" type="number" name="rate_tps" min="1" value="30" step="5" /></br>
+					<label for="c1"><span>rate tps</span></label><br /><input id="input-rate_tps" class="control-input" type="range" name="rate_tps" min="0" max="10" value="0" step="1" /></br>
+					<input type="button" value="init" id="control-init" />
+					<input type="button" value="start" id="control-start" />
+					<input type="button" value="stop" id="control-stop" />
+					</br>
 				</div>
 				<div id="colors">
 					<label for="c1"><span>c1</span></label><br /><input id="input-c1" class="color-input" type="color" name="c1" value="#6ec56e" /><input id="input-c1-val" class="color-input-val" type="number" name="c1-val" value="0" /></br>
@@ -61,6 +65,12 @@ class WebviewManager implements vscode.WebviewViewProvider {
 				this.webviewPanel?.webview.postMessage({ messageType: 'colors', data: message.data });
 			} else if (message.messageType === 'set-rate_tps') {
 				this.webviewPanel?.webview.postMessage({ messageType: 'set-rate_tps', data: message.data });
+			} else if (message.messageType === 'init') {
+				this.webviewPanel?.webview.postMessage({ messageType: 'init' });
+			} else if (message.messageType === 'start') {
+				this.webviewPanel?.webview.postMessage({ messageType: 'start' });
+			} else if (message.messageType === 'stop') {
+				this.webviewPanel?.webview.postMessage({ messageType: 'stop' });
 			}
 		});
 
@@ -71,6 +81,8 @@ class WebviewManager implements vscode.WebviewViewProvider {
 				console.warn('did not set parameters in view', this.parameters, this.webviewView);
 			}
 		});
+
+		this.webviewPanel?.webview.postMessage({ messageType: 'get-parameters' })
 	}
 
 	get panel(): vscode.WebviewPanel {
@@ -102,11 +114,12 @@ class WebviewManager implements vscode.WebviewViewProvider {
 		this.webviewPanel.webview.onDidReceiveMessage(e => {
 			const message = 'messageType' in e ? e : e.data;
 			if (message.messageType === 'send-parameters-to-view') {
-				this.parameters = message.data;
+				this.parameters = Object.fromEntries(Object.entries(message.data).map(([k, v]: any) => ([k, v.value])));
 				console.log('init panel', message);
 				this.webviewView?.webview.postMessage({ messageType: 'set-parameters', data: message.data });
 			}
 		});
+		this.webviewPanel.webview.postMessage({ messageType: 'get-parameters' })
 	}
 
 	updateWebviewPanelHtml(caDeclarationsText: string = defaultCaDeclarationsText) {

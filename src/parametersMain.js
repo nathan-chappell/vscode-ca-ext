@@ -1,15 +1,19 @@
 const vscode = acquireVsCodeApi();
 
 const colorInputs = ['c1', 'c2', 'c3', 'c4'].map(c => document.getElementById(`input-${c}`));
-const rateInput = document.getElementById('input-rate_tps');
-rateInput.onclick = e => {
-    // const message = 'messageType' in e ? e : e.data;
-    vscode.postMessage({ messageType: 'set-rate_tps', data: e.target.valueAsNumber });
-};
+document.getElementById('input-rate_tps').onclick = e => { vscode.postMessage({ messageType: 'set-rate_tps', data: e.target.valueAsNumber }); };
+document.getElementById('control-init').onclick = e => { vscode.postMessage({ messageType: 'init' }); };
+document.getElementById('control-start').onclick = e => { vscode.postMessage({ messageType: 'start' }); };
+document.getElementById('control-stop').onclick = e => { vscode.postMessage({ messageType: 'stop' }); };
 
 const sendColorsToPanel = () => {
     const colors = [...document.querySelectorAll(".color-input")].map(input => [document.getElementById(`${input.id}-val`).valueAsNumber, input.value]);
     vscode.postMessage({ messageType: 'send-colors-to-panel', data: colors });
+};
+
+const sendParametersToPanel = () => {
+    const parameters = Object.fromEntries([...document.querySelectorAll("#parameters input")].map(input => [input.name, input.type == 'number' ? input.valueAsNumber : input.value]));
+    vscode.postMessage({ messageType: 'send-parameters-to-panel', data: parameters });
 };
 
 for (let colorInput of document.querySelectorAll('.color-input')) { colorInput.oninput = e => { sendColorsToPanel(); }; }
@@ -28,12 +32,10 @@ const messageHandlers = {
         }).join(``);
 
         for (let name of parameterNames) {
-            document.getElementById(`input-${name}`).onchange = e => {
-                const parameters = Object.fromEntries([...document.querySelectorAll("#parameters input")].map(input => [input.name, input.type == 'number' ? input.valueAsNumber : input.value]));
-                console.log('parametersMain params:', parameters);
-                vscode.postMessage({ messageType: 'send-parameters-to-panel', data: parameters });
-            };
+            document.getElementById(`input-${name}`).onchange = e => { sendParametersToPanel(); };
         }
+
+        sendParametersToPanel();
     },
 };
 

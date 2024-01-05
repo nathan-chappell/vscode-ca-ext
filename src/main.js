@@ -1,12 +1,12 @@
 const vscode = acquireVsCodeApi();
-
+let running = false;
 let requirementsDefined = true;
+
 if (!(requirementsDefined &&= typeof parameters === 'object')) { console.error(`TypeError: parameters: ${typeof parameters}`); }
 if (!(requirementsDefined &&= typeof initFunc === 'function')) { console.error(`TypeError: initFunc: ${typeof initFunc}`); }
 if (!(requirementsDefined &&= typeof updateFunc === 'function')) { console.error(`TypeError: updateFunc: ${typeof updateFunc}`); }
 if (!requirementsDefined) { throw new Error("requirements not met!"); }
 
-vscode.postMessage({ messageType: 'send-parameters-to-view', data: parameters });
 
 const configureWorkers = () => {
     let missingWorkers = false;
@@ -28,15 +28,15 @@ const configureWorkers = () => {
     drawingWorker.onmessage = e => {
         const message = 'messageType' in e ? e : e.data;
         if (message.messageType == 'high-water-mark') { domainWorker.postMessage({ messageType: 'stop-domain-update' }); }
-        if (message.messageType == 'low-water-mark') { domainWorker.postMessage({ messageType: 'start-domain-update' }); }
+        if (message.messageType == 'low-water-mark') { if (running) { domainWorker.postMessage({ messageType: 'start-domain-update' }); } }
     };
 
     // https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/transferControlToOffscreen#examples
     const offscreen = canvasCaCanvas.transferControlToOffscreen();
     drawingWorker.postMessage({ canvas: offscreen, messageType: 'set-canvas' }, [offscreen]);
     domainWorker.postMessage({ messageType: 'set-funcs', data: { initFunc: initFunc.toString(), updateFunc: updateFunc.toString(), } });
-    domainWorker.postMessage({ messageType: 'set-parameters', data: parameters });
-    domainWorker.postMessage({ messageType: 'start-domain-update' });
+    domainWorker.postMessage({ messageType: 'set-parameters', data: Object.fromEntries(Object.entries(parameters).map(([k, v]) => ([k, v.value]))) });
+    domainWorker.postMessage({ messageType: 'init-domain' });
 };
 
 const canvasCaCanvas = document.getElementById('ca-canvas');
@@ -54,10 +54,24 @@ const messageHandlers = {
         domainWorker.postMessage({ messageType: 'set-parameters', data: message.data });
         drawingWorker.postMessage({ messageType: 'flush' });
     },
+    'get-parameters': message => {
+        vscode.postMessage({ messageType: 'send-parameters-to-view', data: parameters });
+    },
     'set-rate_tps': message => {
         drawingWorker.postMessage({ messageType: 'set-rate_tps', data: message.data });
         drawingWorker.postMessage({ messageType: 'flush' });
     },
+    'init': () => {
+        domainWorker.postMessage({ messageType: 'init-domain' });
+    },
+    'start': () => {
+        domainWorker.postMessage({ messageType: 'start-domain-update' });
+        running = true;
+    },
+    'stop': () => {
+        domainWorker.postMessage({ messageType: 'stop-domain-update' });
+        running = false;
+    }
 };
 
 const listenerName = 'main';
