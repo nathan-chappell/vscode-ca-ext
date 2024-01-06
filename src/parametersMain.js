@@ -12,7 +12,12 @@ const sendColorsToPanel = () => {
 };
 
 const sendParametersToPanel = () => {
-    const parameters = Object.fromEntries([...document.querySelectorAll("#parameters input")].map(input => [input.name, input.type == 'number' ? input.valueAsNumber : input.value]));
+    const parameters = Object.fromEntries(
+        [
+            ...[...document.querySelectorAll("#parameters input")].map(input => [input.name, input.type == 'number' ? input.valueAsNumber : input.value]),
+            ...[...document.querySelectorAll("#parameters select")].map(select => [select.name, select.selected]),
+        ]
+    );
     vscode.postMessage({ messageType: 'send-parameters-to-panel', data: parameters });
 };
 
@@ -21,21 +26,42 @@ for (let colorInputVal of document.querySelectorAll('.color-input-val')) { color
 
 const messageHandlers = {
     'set-parameters': (message) => {
+        console.log('set-parameters', message.data);
         const parameters = Object.entries(message.data);
         const parameterNames = [];
 
         document.getElementById('parameters').innerHTML = parameters.map((p, i) => {
             const name = p[0] || `parameter-${i}`;
+            console.log(name, p);
             parameterNames.push(name);
-            const attributes = Object.entries({ type: 'number', name: name, ...p[1] }).map(([k, v]) => `${k}="${v}"`).join(" ");
-            return `\n<label for="${name}"><span>${name}</span></label><br /><input id="input-${name}" ${attributes} /><hr />`;
+            if (p[1].type == 'select') {
+                // const _multiple = p[1]._multiple ? 'multiple="true"' : '';
+                return [
+                    `\n`,
+                    `<label for="${name}"><span>${name}</span></label>`,
+                    `<br />`,
+                    `<select id="select-${name}" name="${name}" onchange="() => { sendParametersToPanel(); }">`,
+                    ...(p[1].options.map(o => `  <option value="${o}">${o}</option>`)),
+                    `</select>`,
+                    `<hr />`,
+                ].join("\n");
+            } else {
+                const attributes = Object.entries({ type: 'number', name: name, ...p[1] }).map(([k, v]) => `${k}="${v}"`).join(" ");
+                return [
+                    `\n`,
+                    `<label for="${name}"><span>${name}</span></label>`,
+                    `<br />`,
+                    `<input id="input-${name}" ${attributes} />`,
+                    `<hr />`,
+                ].join("\n");
+            }
         }).join(``);
 
         for (let name of parameterNames) {
             document.getElementById(`input-${name}`).onchange = e => { sendParametersToPanel(); };
         }
 
-        sendParametersToPanel();
+        // sendParametersToPanel();
     },
 };
 

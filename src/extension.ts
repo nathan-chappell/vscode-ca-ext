@@ -75,11 +75,7 @@ class WebviewManager implements vscode.WebviewViewProvider {
 		});
 
 		this.webviewView.onDidChangeVisibility(e => {
-			if (this.parameters !== null && this.webviewView !== null) {
-				this.webviewView.webview.postMessage({ messageType: 'set-parameters', data: this.parameters });
-			} else {
-				console.warn('did not set parameters in view', this.parameters, this.webviewView);
-			}
+			this.webviewPanel?.webview.postMessage({ messageType: 'get-parameters' })
 		});
 
 		this.webviewPanel?.webview.postMessage({ messageType: 'get-parameters' })
@@ -192,55 +188,145 @@ interface SpaceTimeInfo {
 	i: number;
 	j: number;
 	parity: 1 | 0;
+	size: number;
+}
+
+interface NumberInputDecl {
+	type?: 'number'
+	min?: number
+	max?: number
+	step?: number
+	value?: number
+}
+
+interface SelectOptionDecl {
+	type: 'select'
+	options: string[]
+}
+
+interface ParameterDeclarations {
+	// general
+	probability: NumberInputDecl
+	quadrantModifier: SelectOptionDecl
+	initType: SelectOptionDecl
+	// dynamics
+	dynamicType: SelectOptionDecl
+	numberOfStates: NumberInputDecl
+	code: NumberInputDecl
+	power: NumberInputDecl
+	asymmetry: NumberInputDecl
+	// impulse
+	impulseType: SelectOptionDecl
+	amplitude: NumberInputDecl
+	frequency: NumberInputDecl
+	mass: NumberInputDecl
+	imp1: NumberInputDecl
+	imp2: NumberInputDecl
+	imp3: NumberInputDecl
+}
+
+type Parameters = { [k in keyof ParameterDeclarations]: ParameterDeclarations[k] extends NumberInputDecl ? number : string }
+
+interface CaDeclarations {
+	parameters: ParameterDeclarations
+	initFunc: (s: SpaceTimeInfo, p: Parameters) => number | boolean;
+	updateFunc: (n: Neighborhood, f: Features, s: SpaceTimeInfo, p: Parameters) => number | boolean;
 }
 
 
-const defaultCaDeclarations = {
+const defaultCaDeclarations: CaDeclarations = {
 	parameters: {
-		p: { min: 0, max: 1, step: .01, value: .23 },
-		'beam-width': { min: 0, max: 50, value: 20, step: 10 },
-		'spawn-count': { min: 0, max: 9, value: 3, step: 1 },
-		'crowding-count': { min: 0, max: 9, value: 4, step: 1 },
-		'flow': { min: -1, max: 1, value: 0, step: 1 },
+		// general
+		probability: { min: 0, max: 1, step: .1, value: 0, },
+		quadrantModifier: { type: 'select', options: ['q1', 'q13', 'q1234'] },
+		initType: { type: 'select', options: ['uniform', 'radial', 'sectoral', 'checkerboard'] },
+		// dynamics
+		dynamicType: { type: 'select', options: ['outer-total', 'diffusion'] },
+		numberOfStates: { min: 2, max: 4, step: 1, value: 2, },
+		code: { min: 0, step: 1, value: 224 },
+		power: { min: 0, step: 1, value: 1 },
+		asymmetry: { min: -1, max: 1, step: 1, value: 0 },
+		// impulse
+		impulseType: { type: 'select', options: ['none', 'ball', 'cross', 'mono', 'beam'] },
+		amplitude: { min: 0, step: .1, value: .1, },
+		frequency: { min: 0, step: .1, value: 0, },
+		mass: { min: 0, step: .1, value: 0, },
+		imp1: { min: 0, step: .1, value: 0, },
+		imp2: { min: 0, step: .1, value: 0, },
+		imp3: { min: 0, step: .1, value: 0, },
 	},
 
 	initFunc: (
 		{ i, j }: SpaceTimeInfo,
-		parameters: any,
+		p: Parameters,
 	) => {
-		return (i < 10) || (j < 10) || (i > 140) || (j > 140) || Math.random() < parameters.p ? 1 : 0;
+		switch (p.initType) {
+			case 'uniform': {
+				break;
+			}
+			case 'radial': {
+				break;
+			}
+			case 'sectoral': {
+				break;
+			}
+			case 'checkerboard': {
+				break;
+			}
+		}
 	},
 
 	updateFunc: (
 		{ n, ne, e, se, s, sw, w, nw, c }: Neighborhood,
 		{ top, right, bottom, left, X, O, sum, corners, cardinals }: Features,
-		{ t, i, j, t_150, r, quadrant, x, y }: SpaceTimeInfo,
-		parameters: any,
+		{ t, i, j, t_150, r, quadrant, x, y, size }: SpaceTimeInfo,
+		{ probability, quadrantModifier, initType,
+			dynamicType, numberOfStates, code, power, asymmetry,
+			impulseType, amplitude, frequency, mass, imp1, imp2, imp3
+		}: Parameters,
 	) => {
-		const beamWidth = parameters['beam-width'] ?? 1;
-		const p = parameters['p'] ?? .5;
-		const spawnCount = parameters['spawn-count'] ?? 3;
-		const crowdingCount = parameters['crowding-count'] ?? 4;
-		const flow = parameters['flow'] ?? 0;
 
-		if ((t_150 % 25) == 0 && Math.abs(i - j) < beamWidth) { return (Math.random() < p ? 1 : (quadrant % 3) % 2); }
+		const impulse_success = Math.random() < probability;
 
-		// if (sum == 7) { return quadrant % 2 || t % 2; }
+		switch (impulseType) {
+			case 'none': {
+				break;
+			}
+			case 'ball': {
+				const ball_x = amplitude * Math.cos(frequency * t);
+				const ball_y = amplitude * Math.sin(frequency * t);
+				if (Math.hypot(ball_x - x, ball_y - y) <= mass * size / 10) { return impulse_success; }
+				break;
+			}
+			case 'cross': {
+				if (Math.abs(x) <= amplitude * size / 4 || Math.abs(y) <= amplitude * size / 4) { return impulse_success; }
+				break;
+			}
+			case 'mono': {
+				if (x < 0 && i - j >= imp1 && i + j <= imp2 && i + j >= imp3
+					|| x >= 0 && i + j <= -imp1 && i - j <= imp2 && i - j >= imp3) { return impulse_success; }
+				break;
+			}
+			case 'beam': {
+				const beam_x = t % size;
+				const beam_y = amplitude * Math.sin(frequency * y)
+				const beam_width = mass / beam_y
+				if (Math.abs(i - beam_x) <= beam_width && Math.abs(j - beam_y) <= imp1) { return impulse_success; }
+				break;
+			}
+		}
 
-		if (flow < 0 && r > 50) {
-			return (left > 0 || bottom > 0) && X > 2 ? 1 : c;
-		} else if (flow > 0 && r > 50) {
-			return (left > 1 || bottom > 1) && X > 2 ? 0 : 1;
-		} else if (c == 1 && sum < spawnCount) {
-			return 0;
-		} else if (c == 1 && spawnCount <= sum && sum <= crowdingCount) {
-			return 1;
-		} else if (c == 1 && crowdingCount < sum) {
-			return 0;
-		} else if (c == 0 && (sum == spawnCount || (X == 3 && O == 0))) {
-			return 1;
-		} else {
-			return 0;
+		switch (dynamicType) {
+			case 'outer-total': {
+				return Math.floor(code / Math.pow(numberOfStates, numberOfStates * sum + c)) % numberOfStates
+			}
+			case 'diffusion': {
+				const annealing = asymmetry / (1 + probability * Math.random())
+				return sum / Math.pow(numberOfStates, power) + annealing
+			}
+			default: {
+				throw new Error(`dynamic not handled: ${dynamicType}`)
+			}
 		}
 	}
 };

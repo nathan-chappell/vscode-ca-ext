@@ -100,7 +100,7 @@ class WrapSquareDomain {
             for (let j = 0; j < this.size; ++j) {
                 const { neighborhood, features } = this.getFeaturesAndNeighborhood(i, j);
                 const spacetimeInfo = this.getSpaceTimeInfo(i, j);
-                result[i][j] = updateFunc(
+                result[i][j] = +updateFunc(
                     neighborhood,
                     features,
                     spacetimeInfo,
