@@ -209,6 +209,7 @@ interface ParameterDeclarations {
 	probability: NumberInputDecl
 	quadrantModifier: SelectOptionDecl
 	initType: SelectOptionDecl
+	init1: NumberInputDecl
 	// dynamics
 	dynamicType: SelectOptionDecl
 	numberOfStates: NumberInputDecl
@@ -240,6 +241,7 @@ const defaultCaDeclarations: CaDeclarations = {
 		probability: { min: 0, max: 1, step: .1, value: 0, },
 		quadrantModifier: { type: 'select', options: ['q1', 'q13', 'q1234'] },
 		initType: { type: 'select', options: ['uniform', 'radial', 'sectoral', 'checkerboard'] },
+		init1: { min: 1, step: 1, value: 1, },
 		// dynamics
 		dynamicType: { type: 'select', options: ['outer-total', 'diffusion'] },
 		numberOfStates: { min: 2, max: 4, step: 1, value: 2, },
@@ -257,21 +259,26 @@ const defaultCaDeclarations: CaDeclarations = {
 	},
 
 	initFunc: (
-		{ i, j }: SpaceTimeInfo,
-		p: Parameters,
+		{ t, i, j, t_150, r, quadrant, x, y, size }: SpaceTimeInfo,
+		{ probability, quadrantModifier, initType, init1 }: Parameters,
 	) => {
-		switch (p.initType) {
+		switch (initType) {
 			case 'uniform': {
-				break;
+				return Math.random() < probability
 			}
 			case 'radial': {
-				break;
+				return Math.random() < probability ** r
 			}
 			case 'sectoral': {
-				break;
+				return Math.atan2(x, -y) < probability ? Math.random() < probability : 0
 			}
 			case 'checkerboard': {
-				break;
+				return Math.floor(i / init1) % 2
+			}
+			default: {
+				// throw new Error(`initFunc not handled`)
+				console.warn(`initFunc not handled`)
+				return Math.random() < probability
 			}
 		}
 	},
