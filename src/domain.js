@@ -88,9 +88,10 @@ class WrapSquareDomain {
             j,
             parity: (i + j) % 2,
             quadrant: 2 * (i > this.size / 2) + (j > this.size / 2),
-            x: i - this.size / 2,
-            y: this.size / 2 - j,
+            x: j - this.size / 2,
+            y: this.size / 2 - i,
             r: Math.floor(Math.hypot(i - this.size / 2, j - this.size / 2)),
+            size: this.size,
         };
     }
 

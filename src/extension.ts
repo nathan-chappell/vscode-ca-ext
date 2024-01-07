@@ -306,15 +306,15 @@ const defaultCaDeclarations: CaDeclarations = {
 				break;
 			}
 			case 'mono': {
-				if (x < 0 && i - j >= imp1 && i + j <= imp2 && i + j >= imp3
-					|| x >= 0 && i + j <= -imp1 && i - j <= imp2 && i - j >= imp3) { return impulse_success; }
+				if (x < 0 && y - x <= imp1 && y + x <= imp2 && y + x >= imp3
+					|| x >= 0 && y + x <= imp1 && y - x <= imp2 && y - x >= imp3) { return impulse_success; }
 				break;
 			}
 			case 'beam': {
-				const beam_x = t % size;
-				const beam_y = amplitude * Math.sin(frequency * y)
-				const beam_width = mass / beam_y
-				if (Math.abs(i - beam_x) <= beam_width && Math.abs(j - beam_y) <= imp1) { return impulse_success; }
+				const beam_j = t % size;
+				const beam_y = amplitude * Math.sin(frequency * x)
+				const beam_width = imp2
+				if (Math.abs(j - beam_j) <= beam_width && Math.abs(y - beam_y) <= imp1) { return impulse_success; }
 				break;
 			}
 		}
