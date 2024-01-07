@@ -15,7 +15,7 @@ const sendParametersToPanel = () => {
     const parameters = Object.fromEntries(
         [
             ...[...document.querySelectorAll("#parameters input")].map(input => [input.name, input.type == 'number' ? input.valueAsNumber : input.value]),
-            ...[...document.querySelectorAll("#parameters select")].map(select => [select.name, select.selected]),
+            ...[...document.querySelectorAll("#parameters select")].map(select => [select.name, select.options.item(Math.max(0, select.selectedIndex)).value]),
         ]
     );
     vscode.postMessage({ messageType: 'send-parameters-to-panel', data: parameters });
@@ -40,7 +40,7 @@ const messageHandlers = {
                     `\n`,
                     `<label for="${name}"><span>${name}</span></label>`,
                     `<br />`,
-                    `<select id="select-${name}" name="${name}" onchange="() => { sendParametersToPanel(); }">`,
+                    `<select id="parameter-control-${name}" name="${name}" onchange="() => { sendParametersToPanel(); }">`,
                     ...(p[1].options.map(o => `  <option value="${o}">${o}</option>`)),
                     `</select>`,
                     `<hr />`,
@@ -51,18 +51,28 @@ const messageHandlers = {
                     `\n`,
                     `<label for="${name}"><span>${name}</span></label>`,
                     `<br />`,
-                    `<input id="input-${name}" ${attributes} />`,
+                    `<input id="parameter-control-${name}" ${attributes} />`,
                     `<hr />`,
                 ].join("\n");
             }
         }).join(``);
 
-        for (let name of parameterNames) {
-            document.getElementById(`input-${name}`).onchange = e => { sendParametersToPanel(); };
-        }
+        const zoomHandler = (e) => {
+            console.log('zoomHandler', e);
+            if (e.altKey && e.key === 'ArrowUp') {
+                e.target.step /= 2;
+            } else if (e.altKey && e.key === 'ArrowDown') {
+                e.target.step *= 2;
+            }
+            // document.addEventListener('keyup', () => { document.removeEventListener('keydown', zoomHandler); }, { once: true });
+        };
 
-        // sendParametersToPanel();
-    },
+        for (let name of parameterNames) {
+            document.getElementById(`parameter-control-${name}`).onchange = e => { sendParametersToPanel(); };
+            [...document.querySelectorAll(`input[type="number"]`)].forEach(el => el.addEventListener('focus', e => { e.preventDefault(); document.addEventListener('keydown', zoomHandler); }));
+            [...document.querySelectorAll(`input[type="number"]`)].forEach(el => el.addEventListener('blur', e => { e.preventDefault(); document.removeEventListener('keydown', zoomHandler, { once: true }); }));
+        };
+    }
 };
 
 const listenerName = 'parametersMain';

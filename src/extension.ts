@@ -263,9 +263,6 @@ const defaultCaDeclarations: CaDeclarations = {
 		{ probability, quadrantModifier, initType, init1 }: Parameters,
 	) => {
 		switch (initType) {
-			case 'uniform': {
-				return Math.random() < probability
-			}
 			case 'radial': {
 				return Math.random() < probability ** r
 			}
@@ -275,9 +272,8 @@ const defaultCaDeclarations: CaDeclarations = {
 			case 'checkerboard': {
 				return Math.floor(i / init1) % 2
 			}
+			case 'uniform':
 			default: {
-				// throw new Error(`initFunc not handled`)
-				console.warn(`initFunc not handled`)
 				return Math.random() < probability
 			}
 		}
@@ -324,15 +320,13 @@ const defaultCaDeclarations: CaDeclarations = {
 		}
 
 		switch (dynamicType) {
-			case 'outer-total': {
-				return Math.floor(code / Math.pow(numberOfStates, numberOfStates * sum + c)) % numberOfStates
-			}
 			case 'diffusion': {
 				const annealing = asymmetry / (1 + probability * Math.random())
 				return sum / Math.pow(numberOfStates, power) + annealing
 			}
+			case 'outer-total':
 			default: {
-				throw new Error(`dynamic not handled: ${dynamicType}`)
+				return Math.floor(code / Math.pow(numberOfStates, numberOfStates * sum + c)) % numberOfStates
 			}
 		}
 	}
