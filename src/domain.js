@@ -71,11 +71,9 @@ class WrapSquareDomain {
                 right: ne + e + se,
                 bottom: sw + s + se,
                 left: nw + w + sw,
-                X: c + nw + ne + se + sw,
-                O: n + ne + e + se + s + sw + w + nw,
-                corners: nw + ne + se + sw,
-                cardinals: n + e + s + w,
-                sum: c + n + ne + e + se + s + sw + w + nw,
+                X: nw + ne + se + sw,
+                O: n + e + s + w,
+                sum: n + ne + e + se + s + sw + w + nw,
             }
         };
     }

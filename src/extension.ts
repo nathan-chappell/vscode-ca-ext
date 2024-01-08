@@ -217,7 +217,7 @@ interface ParameterDeclarations {
 	power: NumberInputDecl
 	asymmetry: NumberInputDecl
 	// impulse
-	impulseType: SelectOptionDecl
+	shape: SelectOptionDecl
 	amplitude: NumberInputDecl
 	frequency: NumberInputDecl
 	mass: NumberInputDecl
@@ -243,19 +243,13 @@ const defaultCaDeclarations: CaDeclarations = {
 		initType: { type: 'select', options: ['uniform', 'radial', 'sectoral', 'checkerboard'] },
 		init1: { min: 1, step: 1, value: 1, },
 		// dynamics
-		dynamicType: { type: 'select', options: ['outer-total', 'diffusion'] },
+		dynamicType: { type: 'select', options: ['outer-total', 'diffusion', 'outer-X-O'] },
 		numberOfStates: { min: 2, max: 4, step: 1, value: 2, },
 		code: { min: 0, step: 1, value: 224 },
 		power: { min: 0, step: 1, value: 1 },
 		asymmetry: { min: -1, max: 1, step: 1, value: 0 },
 		// impulse
-		impulseType: { type: 'select', options: ['none', 'ball', 'cross', 'mono', 'beam'] },
-		amplitude: { min: 0, step: .1, value: .1, },
-		frequency: { min: 0, step: .1, value: 0, },
-		mass: { min: 0, step: .1, value: 0, },
-		imp1: { min: 0, step: .1, value: 0, },
-		imp2: { min: 0, step: .1, value: 0, },
-		imp3: { min: 0, step: .1, value: 0, },
+		shape: { type: 'select', options: ['none', 'ball', 'cross', 'heart', 'beam'] },
 	},
 
 	initFunc: (
@@ -270,7 +264,7 @@ const defaultCaDeclarations: CaDeclarations = {
 				return Math.atan2(x, -y) < probability ? Math.random() < probability : 0
 			}
 			case 'checkerboard': {
-				return Math.floor(i / init1) % 2
+				return (Math.floor(i / init1) | Math.floor(j / init1)) % 2
 			}
 			case 'uniform':
 			default: {
@@ -278,6 +272,7 @@ const defaultCaDeclarations: CaDeclarations = {
 			}
 		}
 	},
+	// 1010201000002
 
 	updateFunc: (
 		{ n, ne, e, se, s, sw, w, nw, c }: Neighborhood,
@@ -285,19 +280,22 @@ const defaultCaDeclarations: CaDeclarations = {
 		{ t, i, j, t_150, r, quadrant, x, y, size }: SpaceTimeInfo,
 		{ probability, quadrantModifier, initType,
 			dynamicType, numberOfStates, code, power, asymmetry,
-			impulseType, amplitude, frequency, mass, imp1, imp2, imp3
+			shape, amplitude, frequency, mass, imp1, imp2, imp3
 		}: Parameters,
 	) => {
 
-		const impulse_success = Math.random() < probability;
+		// const impulse_success = Math.random() < probability;
+		const impulse_success = 1;
 
-		switch (impulseType) {
+		switch (shape) {
 			case 'none': {
 				break;
 			}
 			case 'ball': {
-				const ball_x = amplitude * Math.cos(frequency * t);
-				const ball_y = amplitude * Math.sin(frequency * t);
+				const R = size / 2
+				const r = size / 16
+				const ball_x = R * Math.cos(frequency * t);
+				const ball_y = R * Math.sin(frequency * t);
 				if (Math.hypot(ball_x - x, ball_y - y) <= mass * size / 10) { return impulse_success; }
 				break;
 			}
@@ -306,28 +304,30 @@ const defaultCaDeclarations: CaDeclarations = {
 				break;
 			}
 			case 'mono': {
-				if (x < 0 && y - x <= imp1 && y + x <= imp2 && y + x >= imp3
-					|| x >= 0 && y + x <= imp1 && y - x <= imp2 && y - x >= imp3) { return impulse_success; }
+				if (x < 0 && y - x <= 60 && y + x <= 10 && y + x >= -50
+					|| x >= 0 && y + x <= 60 && y - x <= 10 && y - x >= -50) { return impulse_success; }
 				break;
 			}
 			case 'beam': {
+				const size_ratio = 8;
 				const beam_j = t % size;
-				const beam_y = amplitude * Math.sin(frequency * x)
-				const beam_width = imp2
-				if (Math.abs(j - beam_j) <= beam_width && Math.abs(y - beam_y) <= imp1) { return impulse_success; }
+				const beam_y = size / size_ratio * Math.sin(x + t)
+				if (j == beam_j && Math.abs(y - beam_y) <= size / (size_ratio * 4)) { return impulse_success; }
 				break;
 			}
 		}
 
+		const NUM_STATES_X = 5; // sum of corners can have values 0-5
+		const NUM_STATES_O = 5; // sum of cardinals can have values 0-5
+
 		switch (dynamicType) {
 			case 'diffusion': {
-				const annealing = asymmetry / (1 + probability * Math.random())
-				return sum / Math.pow(numberOfStates, power) + annealing
+				// const annealing = asymmetry / (1 + probability * Math.random())
+				return sum / Math.pow(X * O, power)
 			}
+			case 'outer-X-O': { return Math.floor(code / Math.pow(numberOfStates, c + numberOfStates * (X + NUM_STATES_X * (O)))) % numberOfStates }
 			case 'outer-total':
-			default: {
-				return Math.floor(code / Math.pow(numberOfStates, numberOfStates * sum + c)) % numberOfStates
-			}
+			default: { return Math.floor(code / Math.pow(numberOfStates, c + numberOfStates * sum)) % numberOfStates }
 		}
 	}
 };
