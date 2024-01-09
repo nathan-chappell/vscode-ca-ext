@@ -1,7 +1,7 @@
 const vscode = acquireVsCodeApi();
 
 const colorInputs = ['c1', 'c2', 'c3', 'c4'].map(c => document.getElementById(`input-${c}`));
-document.getElementById('input-rate_tps').onclick = e => { vscode.postMessage({ messageType: 'set-rate_tps', data: e.target.valueAsNumber }); };
+document.getElementById('input-rate_bpm').onclick = e => { vscode.postMessage({ messageType: 'set-rate_bpm', data: e.target.valueAsNumber }); };
 document.getElementById('control-init').onclick = e => { vscode.postMessage({ messageType: 'init' }); };
 document.getElementById('control-start').onclick = e => { vscode.postMessage({ messageType: 'start' }); };
 document.getElementById('control-stop').onclick = e => { vscode.postMessage({ messageType: 'stop' }); };

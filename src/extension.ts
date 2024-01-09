@@ -1,158 +1,6 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
-import { timingSafeEqual } from 'crypto';
 import * as vscode from 'vscode';
-
-let webviewPanel: vscode.WebviewPanel | null = null;
-let webviewView: vscode.WebviewView | null = null;
-
-class WebviewManager implements vscode.WebviewViewProvider {
-	webviewPanel: vscode.WebviewPanel | null = null;
-	extensionUri: vscode.Uri | null = null;
-	webviewView: vscode.WebviewView | null = null;
-
-	domainWorkerSrc: string | null = null;
-	drawingWorkerSrc: string | null = null;
-	gridStylerWorkerSrc: string | null = null;
-
-	parameters: any = null;
-
-	resolveWebviewView(
-		webviewView: vscode.WebviewView,
-		context: vscode.WebviewViewResolveContext<unknown>,
-		token: vscode.CancellationToken
-	): void | Thenable<void> {
-		console.log('resolving webview view');
-		if (this.extensionUri == null) { throw new Error("extensionUri was null"); }
-		this.webviewView = webviewView;
-		this.webviewView.webview.options = { enableScripts: true };
-
-		const scriptUri = this.webviewView.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'src', 'parametersMain.js'));
-		this.webviewView.webview.html = `<!DOCTYPE html>
-			<html lang="en">
-			<head>
-				<meta charset="UTF-8">
-				<meta name="viewport" content="width=device-width, initial-scale=1.0">
-				<title>CA Parameters</title>
-				<script defer src="${scriptUri}"></script>
-			</head>
-			<body>
-				<div id="controls">
-					<label for="c1"><span>rate tps</span></label><br /><input id="input-rate_tps" class="control-input" type="range" name="rate_tps" min="0" max="10" value="0" step="1" /></br>
-					<input type="button" value="init" id="control-init" />
-					<input type="button" value="start" id="control-start" />
-					<input type="button" value="stop" id="control-stop" />
-					</br>
-				</div>
-				<div id="colors">
-					<label for="c1"><span>c1</span></label><br /><input id="input-c1" class="color-input" type="color" name="c1" value="#6ec56e" /><input id="input-c1-val" class="color-input-val" type="number" name="c1-val" value="0" /></br>
-					<label for="c2"><span>c2</span></label><br /><input id="input-c2" class="color-input" type="color" name="c2" value="#554bec" /><input id="input-c2-val" class="color-input-val" type="number" name="c2-val" value="1" /></br>
-					<label for="c3"><span>c3</span></label><br /><input id="input-c3" class="color-input" type="color" name="c3" value="#000000" /><input id="input-c3-val" class="color-input-val" type="number" name="c3-val" value="2" /></br>
-					<label for="c4"><span>c4</span></label><br /><input id="input-c4" class="color-input" type="color" name="c4" value="#ffffff" /><input id="input-c4-val" class="color-input-val" type="number" name="c4-val" value="3" /></br>
-				</div>
-				<hr />
-				<div id="parameters"></div>
-			</body>
-			</html>`;
-
-		this.webviewView.webview.onDidReceiveMessage(e => {
-			const message = 'messageType' in e ? e : e.data;
-			console.log('webview view posted', message);
-			if (message.messageType === 'send-parameters-to-panel') {
-				this.parameters = message.data;
-				this.webviewPanel?.webview.postMessage({ messageType: 'parameters', data: message.data });
-			} else if (message.messageType === 'send-colors-to-panel') {
-				this.webviewPanel?.webview.postMessage({ messageType: 'colors', data: message.data });
-			} else if (message.messageType === 'set-rate_tps') {
-				this.webviewPanel?.webview.postMessage({ messageType: 'set-rate_tps', data: message.data });
-			} else if (message.messageType === 'init') {
-				this.webviewPanel?.webview.postMessage({ messageType: 'init' });
-			} else if (message.messageType === 'start') {
-				this.webviewPanel?.webview.postMessage({ messageType: 'start' });
-			} else if (message.messageType === 'stop') {
-				this.webviewPanel?.webview.postMessage({ messageType: 'stop' });
-			}
-		});
-
-		this.webviewView.onDidChangeVisibility(e => {
-			this.webviewPanel?.webview.postMessage({ messageType: 'get-parameters' })
-		});
-
-		this.webviewPanel?.webview.postMessage({ messageType: 'get-parameters' })
-	}
-
-	get panel(): vscode.WebviewPanel {
-		if (this.webviewPanel === null) {
-			throw new Error("webviewPanel === null");
-		} else {
-			return this.webviewPanel;
-		}
-	}
-
-	async initializeWebviewPanelFromContext(context: vscode.ExtensionContext): Promise<void> {
-		this.webviewPanel = vscode.window.createWebviewPanel(
-			'cellularAutomata',
-			'Cellular Automata',
-			vscode.ViewColumn.One,
-			{
-				enableScripts: true,
-			}
-		);
-		this.extensionUri = context.extensionUri;
-		this.domainWorkerSrc = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(this.extensionUri, 'src', 'domain.js')));
-		this.drawingWorkerSrc = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(this.extensionUri, 'src', 'drawing.js')));
-		this.gridStylerWorkerSrc = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(this.extensionUri, 'src', 'grid-styler.js')));
-
-		this.updateWebviewPanelHtml();
-		const disposeWebviewPanel = () => { this.webviewPanel = null; };
-		context.subscriptions.push({ dispose() { disposeWebviewPanel(); } });
-
-		this.webviewPanel.webview.onDidReceiveMessage(e => {
-			const message = 'messageType' in e ? e : e.data;
-			if (message.messageType === 'send-parameters-to-view') {
-				this.parameters = Object.fromEntries(Object.entries(message.data).map(([k, v]: any) => ([k, v.value])));
-				console.log('init panel', message);
-				this.webviewView?.webview.postMessage({ messageType: 'set-parameters', data: message.data });
-			}
-		});
-		this.webviewPanel.webview.postMessage({ messageType: 'get-parameters' })
-	}
-
-	updateWebviewPanelHtml(caDeclarationsText: string = defaultCaDeclarationsText) {
-		if (this.webviewPanel === null) { console.warn('webviewPanel is null, cant set html'); return; }
-		if (this.extensionUri === null) { console.warn('extensionUri is null, cant set html'); return; }
-
-		this.webviewPanel.webview.html = `<!DOCTYPE html>
-		<html>
-		<head>
-			<meta charset="UTF-8">
-			<meta name="viewport" content="width=device-width, initial-scale=1.0">
-			<title>Cellular Automata</title>
-			<script>
-			var domainWorkerSrcBase64Blob = new Blob([atob('${btoa(this.domainWorkerSrc!)}')], { messageType: 'application/javascript' });
-			var domainWorkerSrcURL = URL.createObjectURL(domainWorkerSrcBase64Blob)
-			var domainWorker = new Worker(domainWorkerSrcURL);
-
-			var drawingWorkerSrcBase64Blob = new Blob([atob('${btoa(this.drawingWorkerSrc!)}')], { messageType: 'application/javascript' });
-			var drawingWorkerSrcURL = URL.createObjectURL(drawingWorkerSrcBase64Blob)
-			var drawingWorker = new Worker(drawingWorkerSrcURL);
-
-			var gridStylerWorkerSrcBase64Blob = new Blob([atob('${btoa(this.gridStylerWorkerSrc!)}')], { messageType: 'application/javascript' });
-			var gridStylerWorkerSrcURL = URL.createObjectURL(gridStylerWorkerSrcBase64Blob)
-			var gridStylerWorker = new Worker(gridStylerWorkerSrcURL);
-
-			${caDeclarationsText}
-			</script>
-			<script src="${this.webviewPanel.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'src', 'main.js'))}" defer></script>
-		</head>
-		<body>
-			<canvas id="ca-canvas" width="600" height="600" />
-		</body>
-		</html>`;
-	}
-}
-
-const webviewManager = new WebviewManager();
 
 interface Neighborhood {
 	n: number;
@@ -192,39 +40,186 @@ interface SpaceTimeInfo {
 }
 
 interface NumberInputDecl {
-	type?: 'number'
-	min?: number
-	max?: number
-	step?: number
-	value?: number
+	type?: 'number';
+	min?: number;
+	max?: number;
+	step?: number;
+	value?: number;
 }
 
 interface SelectOptionDecl {
-	type: 'select'
-	options: string[]
+	type: 'select';
+	options: string[];
 }
 
 interface ParameterDeclarations {
 	// general
-	probability: NumberInputDecl
-	quadrantModifier: SelectOptionDecl
-	initType: SelectOptionDecl
+	probability: NumberInputDecl;
+	quadrantModifier: SelectOptionDecl;
+	initType: SelectOptionDecl;
 	// dynamics
-	dynamicType: SelectOptionDecl
-	numberOfStates: NumberInputDecl
-	code: NumberInputDecl
+	dynamicType: SelectOptionDecl;
+	numberOfStates: NumberInputDecl;
+	code: NumberInputDecl;
 	// impulse
-	shape: SelectOptionDecl
+	shape: SelectOptionDecl;
 }
 
-type Parameters = { [k in keyof ParameterDeclarations]: ParameterDeclarations[k] extends NumberInputDecl ? number : string }
+type Parameters = { [k in keyof ParameterDeclarations]: ParameterDeclarations[k] extends NumberInputDecl ? number : string };
 
 interface CaDeclarations {
-	parameters: ParameterDeclarations
+	parameters: ParameterDeclarations;
 	initFunc: (s: SpaceTimeInfo, p: Parameters) => number | boolean;
 	updateFunc: (n: Neighborhood, f: Features, s: SpaceTimeInfo, p: Parameters) => number | boolean;
 }
 
+class WebviewManager implements vscode.WebviewViewProvider {
+	webviewPanel: vscode.WebviewPanel | null = null;
+	extensionUri: vscode.Uri | null = null;
+	webviewView: vscode.WebviewView | null = null;
+
+	domainWorkerSrc: string | null = null;
+	drawingWorkerSrc: string | null = null;
+	gridStylerWorkerSrc: string | null = null;
+
+	parameters: Parameters | null = null;
+
+	resolveWebviewView(
+		webviewView: vscode.WebviewView,
+		context: vscode.WebviewViewResolveContext<unknown>,
+		token: vscode.CancellationToken
+	): void | Thenable<void> {
+		console.log('resolving webview view');
+		if (this.extensionUri == null) { throw new Error("extensionUri was null"); }
+		this.webviewView = webviewView;
+		this.webviewView.webview.options = { enableScripts: true };
+
+		const scriptUri = this.webviewView.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'src', 'parametersMain.js'));
+		this.webviewView.webview.html = `<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8">
+				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+				<title>CA Parameters</title>
+				<script defer src="${scriptUri}"></script>
+			</head>
+			<body>
+				<div id="controls">
+					<label for="c1"><span>rate bpm</span></label><br /><input id="input-rate_bpm" class="control-input" type="number" name="rate_bpm" min="1" value="130" step="1" /></br>
+					<input type="button" value="init" id="control-init" />
+					<input type="button" value="start" id="control-start" />
+					<input type="button" value="stop" id="control-stop" />
+					</br>
+				</div>
+				<div id="colors">
+					<label for="c1"><span>c1</span></label><br /><input id="input-c1" class="color-input" type="color" name="c1" value="#6ec56e" /><input id="input-c1-val" class="color-input-val" type="number" name="c1-val" value="0" /></br>
+					<label for="c2"><span>c2</span></label><br /><input id="input-c2" class="color-input" type="color" name="c2" value="#554bec" /><input id="input-c2-val" class="color-input-val" type="number" name="c2-val" value="1" /></br>
+					<label for="c3"><span>c3</span></label><br /><input id="input-c3" class="color-input" type="color" name="c3" value="#000000" /><input id="input-c3-val" class="color-input-val" type="number" name="c3-val" value="2" /></br>
+					<label for="c4"><span>c4</span></label><br /><input id="input-c4" class="color-input" type="color" name="c4" value="#ffffff" /><input id="input-c4-val" class="color-input-val" type="number" name="c4-val" value="3" /></br>
+				</div>
+				<hr />
+				<div id="parameters"></div>
+			</body>
+			</html>`;
+
+		this.webviewView.webview.onDidReceiveMessage(e => {
+			const message = 'messageType' in e ? e : e.data;
+			console.log('webview view posted', message);
+			if (message.messageType === 'send-parameters-to-panel') {
+				this.parameters = message.data;
+				this.webviewPanel?.webview.postMessage({ messageType: 'parameters', data: message.data });
+			} else if (message.messageType === 'send-colors-to-panel') {
+				this.webviewPanel?.webview.postMessage({ messageType: 'colors', data: message.data });
+			} else if (message.messageType === 'set-rate_bpm') {
+				this.webviewPanel?.webview.postMessage({ messageType: 'set-rate_bpm', data: message.data });
+			} else if (message.messageType === 'init') {
+				this.webviewPanel?.webview.postMessage({ messageType: 'init' });
+			} else if (message.messageType === 'start') {
+				this.webviewPanel?.webview.postMessage({ messageType: 'start' });
+			} else if (message.messageType === 'stop') {
+				this.webviewPanel?.webview.postMessage({ messageType: 'stop' });
+			}
+		});
+
+		this.webviewView.onDidChangeVisibility(e => {
+			this.webviewPanel?.webview.postMessage({ messageType: 'get-parameters' });
+		});
+
+		this.webviewPanel?.webview.postMessage({ messageType: 'get-parameters' });
+	}
+
+	get panel(): vscode.WebviewPanel {
+		if (this.webviewPanel === null) {
+			throw new Error("webviewPanel === null");
+		} else {
+			return this.webviewPanel;
+		}
+	}
+
+	async initializeWebviewPanelFromContext(context: vscode.ExtensionContext): Promise<void> {
+		this.webviewPanel = vscode.window.createWebviewPanel(
+			'cellularAutomata',
+			'Cellular Automata',
+			vscode.ViewColumn.One,
+			{
+				enableScripts: true,
+			}
+		);
+		this.extensionUri = context.extensionUri;
+		this.domainWorkerSrc = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(this.extensionUri, 'src', 'domain.js')));
+		this.drawingWorkerSrc = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(this.extensionUri, 'src', 'drawing.js')));
+		this.gridStylerWorkerSrc = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(this.extensionUri, 'src', 'grid-styler.js')));
+
+		this.updateWebviewPanelHtml();
+		const disposeWebviewPanel = () => { this.webviewPanel = null; };
+		context.subscriptions.push({ dispose() { disposeWebviewPanel(); } });
+
+		this.webviewPanel.webview.onDidReceiveMessage(e => {
+			const message = 'messageType' in e ? e : e.data;
+			if (message.messageType === 'send-parameters-to-view') {
+				this.parameters = Object.fromEntries(Object.entries(message.data).map(([k, v]: any) => ([k, v.value])));
+				console.log('init panel', message);
+				this.webviewView?.webview.postMessage({ messageType: 'set-parameters', data: message.data });
+			}
+		});
+		this.webviewPanel.webview.postMessage({ messageType: 'get-parameters' });
+	}
+
+	updateWebviewPanelHtml(caDeclarationsText: string = defaultCaDeclarationsText) {
+		if (this.webviewPanel === null) { console.warn('webviewPanel is null, cant set html'); return; }
+		if (this.extensionUri === null) { console.warn('extensionUri is null, cant set html'); return; }
+
+		this.webviewPanel.webview.html = `<!DOCTYPE html>
+		<html>
+		<head>
+			<meta charset="UTF-8">
+			<meta name="viewport" content="width=device-width, initial-scale=1.0">
+			<title>Cellular Automata</title>
+			<script>
+			var domainWorkerSrcBase64Blob = new Blob([atob('${btoa(this.domainWorkerSrc!)}')], { messageType: 'application/javascript' });
+			var domainWorkerSrcURL = URL.createObjectURL(domainWorkerSrcBase64Blob)
+			var domainWorker = new Worker(domainWorkerSrcURL);
+
+			var drawingWorkerSrcBase64Blob = new Blob([atob('${btoa(this.drawingWorkerSrc!)}')], { messageType: 'application/javascript' });
+			var drawingWorkerSrcURL = URL.createObjectURL(drawingWorkerSrcBase64Blob)
+			var drawingWorker = new Worker(drawingWorkerSrcURL);
+
+			var gridStylerWorkerSrcBase64Blob = new Blob([atob('${btoa(this.gridStylerWorkerSrc!)}')], { messageType: 'application/javascript' });
+			var gridStylerWorkerSrcURL = URL.createObjectURL(gridStylerWorkerSrcBase64Blob)
+			var gridStylerWorker = new Worker(gridStylerWorkerSrcURL);
+
+			${caDeclarationsText}
+			</script>
+			<script src="${this.webviewPanel.webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'src', 'main.js'))}" defer></script>
+		</head>
+		<body>
+			<canvas id="ca-canvas" width="600" height="600" />
+		</body>
+		</html>`;
+	}
+}
+
+const webviewManager = new WebviewManager();
 
 const defaultCaDeclarations: CaDeclarations = {
 	parameters: {
@@ -246,14 +241,14 @@ const defaultCaDeclarations: CaDeclarations = {
 	) => {
 		switch (initType) {
 			case 'radial': {
-				return Math.random() < probability ** r / (size / 4)
+				return Math.random() < probability ** r / (size / 4);
 			}
 			case 'checkerboard': {
-				return (Math.floor(i / probability) | Math.floor(j / probability)) % 2
+				return (Math.floor(i / probability) | Math.floor(j / probability)) % 2;
 			}
 			case 'uniform':
 			default: {
-				return Math.random() < probability
+				return Math.random() < probability;
 			}
 		}
 	},
@@ -276,8 +271,8 @@ const defaultCaDeclarations: CaDeclarations = {
 				break;
 			}
 			case 'ball': {
-				const R = size / 2
-				const r = size / 16
+				const R = size / 2;
+				const r = size / 16;
 				const ball_x = R * Math.cos(theta);
 				const ball_y = R * Math.sin(theta);
 				if (Math.hypot(ball_x - x, ball_y - y) <= r) { return impulse_success; }
@@ -295,7 +290,7 @@ const defaultCaDeclarations: CaDeclarations = {
 			case 'beam': {
 				const size_ratio = 8;
 				const beam_j = t % size;
-				const beam_y = size / size_ratio * Math.sin(x + t)
+				const beam_y = size / size_ratio * Math.sin(x + t);
 				if (j == beam_j && Math.abs(y - beam_y) <= size / (size_ratio * 4)) { return impulse_success; }
 				break;
 			}
@@ -307,11 +302,11 @@ const defaultCaDeclarations: CaDeclarations = {
 		switch (dynamicType) {
 			case 'diffusion': {
 				// const annealing = asymmetry / (1 + probability * Math.random())
-				return sum / (1 + X * O * Math.sin(theta))
+				return sum / (1 + X * O * Math.sin(theta));
 			}
-			case 'outer-X-O': { return Math.floor(code / Math.pow(numberOfStates, c + numberOfStates * (X + NUM_STATES_X * (O)))) % numberOfStates }
+			case 'outer-X-O': { return Math.floor(code / Math.pow(numberOfStates, c + numberOfStates * (X + NUM_STATES_X * (O)))) % numberOfStates; }
 			case 'outer-total':
-			default: { return Math.floor(code / Math.pow(numberOfStates, c + numberOfStates * sum)) % numberOfStates }
+			default: { return Math.floor(code / Math.pow(numberOfStates, c + numberOfStates * sum)) % numberOfStates; }
 		}
 	}
 };
@@ -322,35 +317,39 @@ var initFunc = ${defaultCaDeclarations.initFunc.toString()};
 var updateFunc = ${defaultCaDeclarations.updateFunc.toString()};
 `;
 
-const decompileCode = (code: number, numberOfStates: number) => {
+export const decompileCode = (code: number, numberOfStates: number) => {
 	code = Math.floor(code);
-	const lines = []
+	const lines = [];
 	let power = 1;
-	const rules: Record<number, Record<number, number>> = [...Array(10)].reduce((acc, v, i) => ({ ...acc, [i]: {} }), {})
-	const N_SUM_VALS = 9
+	const rules: Record<number, Record<number, number>> = [...Array(10)].reduce((acc, v, i) => ({ ...acc, [i]: {} }), {});
+	const N_SUM_VALS = 9;
 
 	while (code) {
-		const coefficient = code % numberOfStates
+		const coefficient = code % numberOfStates;
 		if (coefficient !== 0) {
 			const state = power % numberOfStates;
-			const sum = Math.floor(power / N_SUM_VALS)
+			const sum = Math.floor(power / numberOfStates);
 			rules[state][sum] = coefficient;
 		}
-		code /= numberOfStates;
+		code = Math.floor(code / numberOfStates);
+		power += 1;
 	}
-
 	for (let state = 0; state < numberOfStates; ++state) {
-		if (!(state in rules)) { continue; }
+		if (!(state in rules)) {
+			continue;
+		}
 		lines.push(`if (c === ${state}) {`);
 		for (let sum = 0; sum < N_SUM_VALS; ++sum) {
-			if (!(sum in rules[state])) { continue; }
-			lines.push(`  if (sum === ${sum}) { return ${rules[state][sum]}; }`)
+			if (!(sum in rules[state])) {
+				continue;
+			}
+			lines.push(`  if (sum === ${sum}) { return ${rules[state][sum]}; }`);
 		}
 		lines.push(`}`);
 	}
-
-	return lines.join('\n')
-}
+	lines.push(`return 0;`);
+	return lines.join('\n');
+};
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -365,12 +364,18 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(vscode.commands.registerCommand(
-		'cellularautomata-js.copy-decls',
+		'cellularautomata-js.show-source',
 		() => {
-			console.log("copy-decls")
-			vscode.env.clipboard.writeText(defaultCaDeclarationsText)
-			vscode.window.showInformationMessage('Default CA Declarations copied to clipboard.');
-			// webviewManager.updateWebviewPanelHtml(currentFileText);
+			vscode.workspace.openTextDocument({ language: 'js', content: defaultCaDeclarationsText });
+		})
+	);
+
+	context.subscriptions.push(vscode.commands.registerCommand(
+		'cellularautomata-js.decompile-code',
+		() => {
+			if (webviewManager.parameters) {
+				vscode.workspace.openTextDocument({ language: 'js', content: decompileCode(webviewManager.parameters.code, webviewManager.parameters.numberOfStates) });
+			}
 		})
 	);
 

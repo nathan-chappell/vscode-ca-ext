@@ -57,8 +57,8 @@ const messageHandlers = {
     'get-parameters': message => {
         vscode.postMessage({ messageType: 'send-parameters-to-view', data: parameters });
     },
-    'set-rate_tps': message => {
-        drawingWorker.postMessage({ messageType: 'set-rate_tps', data: message.data });
+    'set-rate_bpm': message => {
+        drawingWorker.postMessage({ messageType: 'set-rate_bpm', data: message.data });
         drawingWorker.postMessage({ messageType: 'flush' });
     },
     'init': () => {

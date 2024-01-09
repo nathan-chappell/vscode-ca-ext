@@ -27,8 +27,12 @@
         "title": "CA Run"
       },
       {
-        "command": "cellularautomata-js.copy-decls",
-        "title": "CA Copy CA Declarations"
+        "command": "cellularautomata-js.show-source",
+        "title": "CA Show Source"
+      },
+      {
+        "command": "cellularautomata-js.decompile-code",
+        "title": "CA Decompile Code"
       }
     ]
   },
