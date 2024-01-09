@@ -258,6 +258,7 @@ const defaultCaDeclarations: CaDeclarations = {
 		}
 	},
 	// 1010201000002
+	// 777205
 
 	updateFunc: (
 		{ n, ne, e, se, s, sw, w, nw, c }: Neighborhood,
@@ -321,6 +322,35 @@ var initFunc = ${defaultCaDeclarations.initFunc.toString()};
 var updateFunc = ${defaultCaDeclarations.updateFunc.toString()};
 `;
 
+const decompileCode = (code: number, numberOfStates: number) => {
+	code = Math.floor(code);
+	const lines = []
+	let power = 1;
+	const rules: Record<number, Record<number, number>> = [...Array(10)].reduce((acc, v, i) => ({ ...acc, [i]: {} }), {})
+	const N_SUM_VALS = 9
+
+	while (code) {
+		const coefficient = code % numberOfStates
+		if (coefficient !== 0) {
+			const state = power % numberOfStates;
+			const sum = Math.floor(power / N_SUM_VALS)
+			rules[state][sum] = coefficient;
+		}
+		code /= numberOfStates;
+	}
+
+	for (let state = 0; state < numberOfStates; ++state) {
+		if (!(state in rules)) { continue; }
+		lines.push(`if (c === ${state}) {`);
+		for (let sum = 0; sum < N_SUM_VALS; ++sum) {
+			if (!(sum in rules[state])) { continue; }
+			lines.push(`  if (sum === ${sum}) { return ${rules[state][sum]}; }`)
+		}
+		lines.push(`}`);
+	}
+
+	return lines.join('\n')
+}
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -328,7 +358,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand(
 		'cellularautomata-js.run',
 		() => {
-			console.log('run');
+			console.log(decompileCode(234, 2));
 			// const currentFileText = vscode.window.activeTextEditor?.document.getText();
 			// webviewManager.updateWebviewPanelHtml(currentFileText);
 		})
