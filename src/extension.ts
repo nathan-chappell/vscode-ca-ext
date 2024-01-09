@@ -209,21 +209,12 @@ interface ParameterDeclarations {
 	probability: NumberInputDecl
 	quadrantModifier: SelectOptionDecl
 	initType: SelectOptionDecl
-	init1: NumberInputDecl
 	// dynamics
 	dynamicType: SelectOptionDecl
 	numberOfStates: NumberInputDecl
 	code: NumberInputDecl
-	power: NumberInputDecl
-	asymmetry: NumberInputDecl
 	// impulse
 	shape: SelectOptionDecl
-	amplitude: NumberInputDecl
-	frequency: NumberInputDecl
-	mass: NumberInputDecl
-	imp1: NumberInputDecl
-	imp2: NumberInputDecl
-	imp3: NumberInputDecl
 }
 
 type Parameters = { [k in keyof ParameterDeclarations]: ParameterDeclarations[k] extends NumberInputDecl ? number : string }
@@ -241,30 +232,24 @@ const defaultCaDeclarations: CaDeclarations = {
 		probability: { min: 0, max: 1, step: .1, value: 0, },
 		quadrantModifier: { type: 'select', options: ['q1', 'q13', 'q1234'] },
 		initType: { type: 'select', options: ['uniform', 'radial', 'sectoral', 'checkerboard'] },
-		init1: { min: 1, step: 1, value: 1, },
 		// dynamics
 		dynamicType: { type: 'select', options: ['outer-total', 'diffusion', 'outer-X-O'] },
 		numberOfStates: { min: 2, max: 4, step: 1, value: 2, },
 		code: { min: 0, step: 1, value: 224 },
-		power: { min: 0, step: 1, value: 1 },
-		asymmetry: { min: -1, max: 1, step: 1, value: 0 },
 		// impulse
 		shape: { type: 'select', options: ['none', 'ball', 'cross', 'heart', 'beam'] },
 	},
 
 	initFunc: (
 		{ t, i, j, t_150, r, quadrant, x, y, size }: SpaceTimeInfo,
-		{ probability, quadrantModifier, initType, init1 }: Parameters,
+		{ probability, quadrantModifier, initType }: Parameters,
 	) => {
 		switch (initType) {
 			case 'radial': {
-				return Math.random() < probability ** r
-			}
-			case 'sectoral': {
-				return Math.atan2(x, -y) < probability ? Math.random() < probability : 0
+				return Math.random() < probability ** r / (size / 4)
 			}
 			case 'checkerboard': {
-				return (Math.floor(i / init1) | Math.floor(j / init1)) % 2
+				return (Math.floor(i / probability) | Math.floor(j / probability)) % 2
 			}
 			case 'uniform':
 			default: {
@@ -278,14 +263,12 @@ const defaultCaDeclarations: CaDeclarations = {
 		{ n, ne, e, se, s, sw, w, nw, c }: Neighborhood,
 		{ top, right, bottom, left, X, O, sum, corners, cardinals }: Features,
 		{ t, i, j, t_150, r, quadrant, x, y, size }: SpaceTimeInfo,
-		{ probability, quadrantModifier, initType,
-			dynamicType, numberOfStates, code, power, asymmetry,
-			shape, amplitude, frequency, mass, imp1, imp2, imp3
-		}: Parameters,
+		{ probability, quadrantModifier, initType, dynamicType, numberOfStates, code, shape }: Parameters,
 	) => {
 
 		// const impulse_success = Math.random() < probability;
 		const impulse_success = 1;
+		const theta = t * 2 * Math.PI / size;
 
 		switch (shape) {
 			case 'none': {
@@ -294,16 +277,16 @@ const defaultCaDeclarations: CaDeclarations = {
 			case 'ball': {
 				const R = size / 2
 				const r = size / 16
-				const ball_x = R * Math.cos(frequency * t);
-				const ball_y = R * Math.sin(frequency * t);
-				if (Math.hypot(ball_x - x, ball_y - y) <= mass * size / 10) { return impulse_success; }
+				const ball_x = R * Math.cos(theta);
+				const ball_y = R * Math.sin(theta);
+				if (Math.hypot(ball_x - x, ball_y - y) <= r) { return impulse_success; }
 				break;
 			}
 			case 'cross': {
-				if (Math.abs(x) <= amplitude * size / 4 || Math.abs(y) <= amplitude * size / 4) { return impulse_success; }
+				if (Math.abs(x) <= 3 || Math.abs(y) <= 3) { return impulse_success; }
 				break;
 			}
-			case 'mono': {
+			case 'heart': {
 				if (x < 0 && y - x <= 60 && y + x <= 10 && y + x >= -50
 					|| x >= 0 && y + x <= 60 && y - x <= 10 && y - x >= -50) { return impulse_success; }
 				break;
@@ -323,7 +306,7 @@ const defaultCaDeclarations: CaDeclarations = {
 		switch (dynamicType) {
 			case 'diffusion': {
 				// const annealing = asymmetry / (1 + probability * Math.random())
-				return sum / Math.pow(X * O, power)
+				return sum / (1 + X * O * Math.sin(theta))
 			}
 			case 'outer-X-O': { return Math.floor(code / Math.pow(numberOfStates, c + numberOfStates * (X + NUM_STATES_X * (O)))) % numberOfStates }
 			case 'outer-total':

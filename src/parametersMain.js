@@ -69,6 +69,7 @@ const messageHandlers = {
 
         for (let name of parameterNames) {
             document.getElementById(`parameter-control-${name}`).onchange = e => { sendParametersToPanel(); };
+            document.getElementById(`parameter-control-${name}`).oninput = e => { sendParametersToPanel(); };
             [...document.querySelectorAll(`input[type="number"]`)].forEach(el => el.addEventListener('focus', e => { e.preventDefault(); document.addEventListener('keydown', zoomHandler); }));
             [...document.querySelectorAll(`input[type="number"]`)].forEach(el => el.addEventListener('blur', e => { e.preventDefault(); document.removeEventListener('keydown', zoomHandler, { once: true }); }));
         };
