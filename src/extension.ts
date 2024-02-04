@@ -226,9 +226,9 @@ const defaultCaDeclarations: CaDeclarations = {
 		// general
 		probability: { min: 0, max: 1, step: .1, value: 0, },
 		quadrantModifier: { type: 'select', options: ['q1', 'q13', 'q1234'] },
-		initType: { type: 'select', options: ['uniform', 'radial', 'sectoral', 'checkerboard'] },
+		initType: { type: 'select', options: ['uniform', 'radial', 'square', 'checkerboard'] },
 		// dynamics
-		dynamicType: { type: 'select', options: ['outer-total', 'diffusion', 'outer-X-O'] },
+		dynamicType: { type: 'select', options: ['outer-total-code', 'outer-moore-code'] },
 		numberOfStates: { min: 2, max: 4, step: 1, value: 2, },
 		code: { min: 0, step: 1, value: 224 },
 		// impulse
@@ -245,6 +245,9 @@ const defaultCaDeclarations: CaDeclarations = {
 			}
 			case 'checkerboard': {
 				return (Math.floor(i / probability) | Math.floor(j / probability)) % 2;
+			}
+			case 'square': {
+				return Math.max(Math.abs(size / 2 - i), Math.abs(size / 2 - j)) < 1 / probability;
 			}
 			case 'uniform':
 			default: {
@@ -302,11 +305,11 @@ const defaultCaDeclarations: CaDeclarations = {
 		switch (dynamicType) {
 			case 'diffusion': {
 				// const annealing = asymmetry / (1 + probability * Math.random())
-				return sum / (1 + X * O * Math.sin(theta));
+				return O / (1 + X * O * Math.sin(theta));
 			}
-			case 'outer-X-O': { return Math.floor(code / Math.pow(numberOfStates, c + numberOfStates * (X + NUM_STATES_X * (O)))) % numberOfStates; }
-			case 'outer-total':
-			default: { return Math.floor(code / Math.pow(numberOfStates, c + numberOfStates * sum)) % numberOfStates; }
+			case 'outer-moore-code': { return Math.floor(code / Math.pow(numberOfStates, c + numberOfStates * O)) % numberOfStates; }
+			case 'outer-total-code':
+			default: { return Math.floor(code / Math.pow(numberOfStates, c + numberOfStates * O)) % numberOfStates; }
 		}
 	}
 };

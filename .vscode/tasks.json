@@ -4,6 +4,20 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"type": "shell",
+			"label": "wat2wasm",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"command": [
+				"wat2wasm",
+				"foo.wat",
+				"&&",
+				"echo 'wasmb64 = \"'$(base64 foo.wasm)'\"' >> foo.js",
+			]
+		},
+		{
 			"type": "npm",
 			"script": "watch",
 			"problemMatcher": "$tsc-watch",
@@ -13,7 +27,7 @@
 			},
 			"group": {
 				"kind": "build",
-				"isDefault": true
+				"isDefault": false
 			}
 		}
 	]

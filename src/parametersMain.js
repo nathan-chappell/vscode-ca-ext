@@ -36,6 +36,7 @@ const messageHandlers = {
             parameterNames.push(name);
             if (p[1].type == 'select') {
                 // const _multiple = p[1]._multiple ? 'multiple="true"' : '';
+
                 return [
                     `\n`,
                     `<label for="${name}"><span>${name}</span></label>`,
@@ -47,6 +48,13 @@ const messageHandlers = {
                 ].join("\n");
             } else {
                 const attributes = Object.entries({ type: 'number', name: name, ...p[1] }).map(([k, v]) => `${k}="${v}"`).join(" ");
+                if (p[1].name === 'code') {
+                    if (p[1].dynamicType === 'outer-moore-code') {
+                        p[1].max = 2 ** 18;
+                    } else if (p[1].dynamicType === 'outer-total-code') {
+                        p[1].max = 2 ** 10;
+                    }
+                }
                 return [
                     `\n`,
                     `<label for="${name}"><span>${name}</span></label>`,

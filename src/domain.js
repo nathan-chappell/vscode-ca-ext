@@ -5,7 +5,7 @@ let domain = null;
 let initFunc = null;
 let updateFunc = null;
 
-const makeZeroSquare = n => [...Array(n)].map(_ => [...Array(n)].map(_ => 0));
+const makeZeroSquare = n => new Uint8Array(function () { for (let i = 0; i < n * n; ++i) { yield 0; } });
 const delay = t => new Promise(res => setTimeout(res, t));
 
 class WrapSquareDomain {
@@ -19,11 +19,14 @@ class WrapSquareDomain {
 
     initialize() {
         // console.log('initializing domain', this, arguments)
-        this.grid = makeZeroSquare(this.size);
-        for (let i = 0; i < this.size; ++i) {
-            for (let j = 0; j < this.size; ++j) {
+        const n = this.size;
+        this.grid = new Uint8Array(n ** 2);
+        for (let i = 0; i < n; ++i) {
+            const offset = i * n;
+            for (let j = 0; j < n; ++j) {
                 const spacetimeInfo = this.getSpaceTimeInfo(i, j);
-                this.grid[i][j] = initFunc(spacetimeInfo, parameters);
+                // TODO: inline initFunc
+                this.grid[offset + j] = initFunc(spacetimeInfo, parameters);
             }
         }
     }
